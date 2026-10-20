@@ -18,13 +18,18 @@ var (
 )
 
 // TestFeatures runs every story under features/ against the compose stack in
-// ../webmail-server/deploy, or the one WEBMAIL_E2E_DEPLOY points at.
+// ../webmail-server/deploy, or the one WEBMAIL_E2E_DEPLOY points at, with its
+// mail sink at WEBMAIL_E2E_MAILSINK.
 func TestFeatures(t *testing.T) {
 	deployDir := os.Getenv("WEBMAIL_E2E_DEPLOY")
 	if deployDir == "" {
 		deployDir = "../webmail-server/deploy"
 	}
-	stack, err := NewStack(deployDir)
+	sinkURL := os.Getenv("WEBMAIL_E2E_MAILSINK")
+	if sinkURL == "" {
+		sinkURL = "http://127.0.0.1:8025"
+	}
+	stack, err := NewStack(deployDir, sinkURL)
 	if err != nil {
 		t.Fatal(err)
 	}

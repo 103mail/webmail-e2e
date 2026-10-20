@@ -37,11 +37,17 @@ func (w *world) register(sc *godog.ScenarioContext) {
 	sc.Step(`^within (\d+) seconds only (\w+)'s thread with (.+) shows "([^"]*)"$`, w.onlyThreadShows)
 	sc.Step(`^(.+) never sees? "([^"]*)"$`, w.neverSee)
 	sc.Step(`^every person's contact suggestions now include everyone they exchanged mail with$`, w.contactsInclude)
+	sc.Step(`^no email has left any Domain containing:$`, w.noEmailContaining)
 
 	// Outcomes that need more of the test stack than exists yet.
 	sc.Step(`^(\S+) delivered exactly .+$`, pending("needs a view of delivered envelopes (the test peer or an outbox control)"))
 	sc.Step(`^(\S+) holds accounts only for its own people$`, pending("needs an account listing control per Domain"))
-	sc.Step(`^no email has left any Domain containing:$`, pending("needs the mail sink"))
+
+	// Email checks look only at what was sent during this story.
+	sc.Before(func(ctx context.Context, _ *godog.Scenario) (context.Context, error) {
+		w.firstEmail, w.firstEmailErr = w.stack.lastEmail(ctx)
+		return ctx, nil
+	})
 }
 
 // pending marks a step whose phrase is agreed but whose harness is not built.
@@ -551,6 +557,35 @@ func (w *world) contactsInclude(ctx context.Context) error {
 				if m != p && !have[m.address] {
 					errs = append(errs, fmt.Errorf("%s has no contact for %s", p.name, m.name))
 					have[m.address] = true // report each missing contact once
+				}
+			}
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// noEmailContaining checks every email any Domain sent during the story,
+// headers and body, for each of the phrases in the table.
+func (w *world) noEmailContaining(ctx context.Context, table *godog.Table) error {
+	if w.firstEmailErr != nil {
+		return w.firstEmailErr
+	}
+	if table == nil || len(table.Rows) == 0 {
+		return fmt.Errorf("the step needs a table of phrases")
+	}
+	emails, err := w.stack.emailsAfter(ctx, w.firstEmail)
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, row := range table.Rows {
+		phrase := strings.TrimSpace(row.Cells[0].Value)
+		for _, e := range emails {
+			n := e.Notification
+			for _, part := range []string{n.Subject, n.Text, n.HTML, string(n.Raw)} {
+				if strings.Contains(part, phrase) {
+					errs = append(errs, fmt.Errorf("email %d to %v contains %q", e.ID, n.To, phrase))
+					break
 				}
 			}
 		}

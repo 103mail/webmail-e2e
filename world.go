@@ -43,6 +43,10 @@ type world struct {
 	}
 	// lastSubject is the thread a following "it" refers to.
 	lastSubject string
+	// firstEmail is the newest email in the mail sink when the story began,
+	// so email checks see only what the story caused.
+	firstEmail    int
+	firstEmailErr error
 }
 
 func newWorld(stack *Stack) *world {

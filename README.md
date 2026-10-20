@@ -109,7 +109,11 @@ The compose stack in `../webmail-server/deploy` grows to what the stories need:
   publishes a descriptor and key, sends envelopes that are stale, replayed,
   mis-signed, oversized or forged, and records everything it receives.
 - **The mail sink**: outbound email from every Domain is captured instead of
-  sent, so stories can read invitations and prove that no content left.
+  sent, so stories can read invitations and prove that no content left. It
+  stands in for SNS, so each server publishes through its production path,
+  and the steps read it at `http://127.0.0.1:8025/messages` (or
+  `WEBMAIL_E2E_MAILSINK`). Email checks see only what was sent during the
+  story.
 - **Controls**: steps can take a Domain down and bring it back, move a Domain's
   clock forward (the server takes the time from Go, never from the database),
   and set test values for the retry budget (2 minutes instead of 72 hours), the

@@ -29,14 +29,16 @@ const passwordHash = "$2y$10$jO3R170QUVr5pj.eMO1bZuduB8SoSAuIpC1jrmtzwnh6vEWr.bq
 // https://webmail.{domain} and trusted through the stack's local CA.
 type Stack struct {
 	deployDir string
+	sinkURL   string
 	http      *http.Client
 
 	mu      sync.Mutex
 	healthy map[string]error
 }
 
-// NewStack returns a Stack for the compose files in deployDir.
-func NewStack(deployDir string) (*Stack, error) {
+// NewStack returns a Stack for the compose files in deployDir, whose mail sink
+// answers at sinkURL.
+func NewStack(deployDir, sinkURL string) (*Stack, error) {
 	caFile := filepath.Join(deployDir, "certs", "webmail-local-ca.crt")
 	pem, err := os.ReadFile(caFile)
 	if err != nil {
@@ -48,6 +50,7 @@ func NewStack(deployDir string) (*Stack, error) {
 	}
 	return &Stack{
 		deployDir: deployDir,
+		sinkURL:   sinkURL,
 		http: &http.Client{
 			Timeout:   10 * time.Second,
 			Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: pool}},
