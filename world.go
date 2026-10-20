@@ -26,6 +26,9 @@ type conversation struct {
 	subject string
 	members []*person
 	writers []*person
+	// others are addresses the author wrote to that belong to nobody in the
+	// story, such as an address that does not exist.
+	others []string
 }
 
 // world is the state of one running story. Every story gets a new one, with
@@ -43,6 +46,13 @@ type world struct {
 	}
 	// lastSubject is the thread a following "it" refers to.
 	lastSubject string
+	// lastReply is the body of the most recent reply, "the reply".
+	lastReply string
+	// lastBounce is the bounce a following "it" refers to.
+	lastBounce bounce
+	// bounceCounts is how many bounces for a subject a person had when last
+	// checked, keyed by person and then subject.
+	bounceCounts map[string]map[string]int
 	// firstEmail is the newest email in the mail sink when the story began,
 	// so email checks see only what the story caused.
 	firstEmail    int
@@ -52,7 +62,8 @@ type world struct {
 func newWorld(stack *Stack) *world {
 	buf := make([]byte, 4)
 	rand.Read(buf)
-	return &world{stack: stack, run: hex.EncodeToString(buf), people: map[string]*person{}}
+	return &world{stack: stack, run: hex.EncodeToString(buf), people: map[string]*person{},
+		bounceCounts: map[string]map[string]int{}}
 }
 
 // canonical is the address a story writes for a person, such as
@@ -93,6 +104,26 @@ func (w *world) person(name string) (*person, error) {
 		return nil, fmt.Errorf("%s has no account in this story", name)
 	}
 	return p, nil
+}
+
+// recipients reads a list that mixes names and quoted addresses, such as
+// `Ann, Bob, "nobody@example.com" and Erin`. Quoted addresses belong to
+// nobody in the story and are used as written.
+func (w *world) recipients(list string) ([]*person, []string, error) {
+	var people []*person
+	var others []string
+	for _, n := range names(list) {
+		if strings.HasPrefix(n, `"`) && strings.HasSuffix(n, `"`) {
+			others = append(others, strings.ToLower(strings.Trim(n, `"`)))
+			continue
+		}
+		p, err := w.person(n)
+		if err != nil {
+			return nil, nil, err
+		}
+		people = append(people, p)
+	}
+	return people, others, nil
 }
 
 func (w *world) persons(list string) ([]*person, error) {

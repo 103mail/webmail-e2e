@@ -1,4 +1,4 @@
-@M1 @wip @rfc-6.3 @rfc-6.5
+@M1 @rfc-6.3 @rfc-6.5
 Feature: A message to many people is delivered where it can be and bounced where it cannot
   As a sender writing to people on several Domains
   I want every reachable recipient to get my message
@@ -17,7 +17,7 @@ Feature: A message to many people is delivered where it can be and bounced where
       | thread                      | from                      | failed recipient   | reason            |
       | Delivery failed: Invitation | mailer-daemon@103mail.com | nobody@example.com | unknown_recipient |
     And the bounces exist only on 103mail.com: Bob, Erin and Ann never see them
-    And every member of "Invitation" sees Alice, Ann, Bob, Erin as the people who received it
+    And within 30 seconds every member of "Invitation" sees Alice, Ann, Bob, Erin as the people who received it
 
     When Bob replies to "Invitation": "Thanks, see you there"
     Then within 30 seconds Alice, Ann and Erin see the reply
@@ -30,7 +30,7 @@ Feature: A message to many people is delivered where it can be and bounced where
     And within 30 seconds Bob has one bounce "Delivery failed: Party" naming both unknown addresses
     And it is from "mailer-daemon@example.com"
 
-  @outage
+  @outage @wip
   Scenario: A Domain that never comes back produces a bounce after the retry budget
     Given the retry budget on 103mail.com is 2 minutes
     When mail.acme.test goes down for good

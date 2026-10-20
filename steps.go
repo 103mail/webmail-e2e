@@ -15,8 +15,10 @@ import (
 
 // register binds the step vocabulary from the README to this world.
 func (w *world) register(sc *godog.ScenarioContext) {
-	// People
-	sc.Step(`^(.+) (?:has an account|have accounts) on (\S+)$`, w.haveAccounts)
+	// People. The account phrase takes only names, so that "nobody called
+	// "x@y" has an account" is not also read as a list of names.
+	sc.Step(`^nobody called (.+) has an account on (\S+)$`, w.nobodyCalled)
+	sc.Step(`^(\w+(?:, \w+)*(?: and \w+)?) (?:has an account|have accounts) on (\S+)$`, w.haveAccounts)
 
 	// Acts
 	sc.Step(`^(\w+) writes to (.+?): "([^"]*)"(?: with the body "([^"]*)")?$`, w.writes)
@@ -40,6 +42,19 @@ func (w *world) register(sc *godog.ScenarioContext) {
 	sc.Step(`^no email has left any Domain containing:$`, w.noEmailContaining)
 	sc.Step(`^(\S+) delivered exactly (.+)$`, w.deliveredExactly)
 	sc.Step(`^(\S+) holds accounts only for its own people$`, w.ownPeopleOnly)
+
+	// Delivery and bounces
+	sc.Step(`^within (\d+) seconds (.+?)(?: each)? (?:has|have) "([^"]*)" in (?:his|her|their) Inbox$`, w.haveInInbox)
+	sc.Step(`^within (\d+) seconds (\w+) has these bounces in (?:his|her|their) Inbox:$`, w.hasBounces)
+	sc.Step(`^within (\d+) seconds (\w+) has one bounce "([^"]*)" naming both unknown addresses$`, w.oneBounceNamingUnknown)
+	sc.Step(`^it is from "([^"]*)"$`, w.bounceIsFrom)
+	sc.Step(`^the bounces exist only on \S+: (.+) never sees? them$`, w.seeNoBounces)
+	sc.Step(`^(\w+) gets no further bounce for "([^"]*)"$`, w.noFurtherBounce)
+	sc.Step(`^within (\d+) seconds every member of "([^"]*)" sees (.+) as the people who received it$`,
+		func(ctx context.Context, seconds int, subject, list string) error {
+			return eventually(ctx, seconds, func() error { return w.membersAre(ctx, list, subject) })
+		})
+	sc.Step(`^within (\d+) seconds (.+) sees? the reply$`, w.seeTheReply)
 
 	// Email checks look only at what was sent during this story.
 	sc.Before(func(ctx context.Context, _ *godog.Scenario) (context.Context, error) {
@@ -83,7 +98,7 @@ func (w *world) writes(ctx context.Context, author, list, subject, body string) 
 	if err != nil {
 		return err
 	}
-	recipients, err := w.persons(list)
+	recipients, others, err := w.recipients(list)
 	if err != nil {
 		return err
 	}
@@ -95,6 +110,7 @@ func (w *world) writes(ctx context.Context, author, list, subject, body string) 
 	for i, r := range recipients {
 		addresses[i] = r.address
 	}
+	addresses = append(addresses, others...)
 	start := time.Now()
 	if _, err := p.session.addThread(ctx, folderID, addresses, subject, body); err != nil {
 		return fmt.Errorf("%s writes %q: %w", author, subject, err)
@@ -102,7 +118,7 @@ func (w *world) writes(ctx context.Context, author, list, subject, body string) 
 	w.lastSend.author, w.lastSend.took = author, time.Since(start)
 	w.conversations = append(w.conversations, &conversation{
 		author: p, subject: subject, members: append([]*person{p}, recipients...),
-		writers: []*person{p},
+		writers: []*person{p}, others: others,
 	})
 	w.lastSubject = subject
 	return nil
@@ -126,6 +142,7 @@ func (w *world) replies(ctx context.Context, who, owner, subject, body string) e
 	}
 	c.wrote(p)
 	w.lastSubject = subject
+	w.lastReply = body
 	return nil
 }
 
