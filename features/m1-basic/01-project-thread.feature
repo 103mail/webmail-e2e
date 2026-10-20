@@ -1,4 +1,4 @@
-@M1 @wip @rfc-5 @rfc-6
+@M1 @rfc-5 @rfc-5.5 @rfc-6
 Feature: A project runs on one thread across three Domains
   As a team spread over 103mail.com, example.com and mail.acme.test
   We want one conversation that everyone sees the same way
