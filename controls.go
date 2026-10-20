@@ -17,6 +17,7 @@ type envelope struct {
 	PeerDomain string   `json:"peerDomain"`
 	Recipients []string `json:"recipients"`
 	Status     string   `json:"status"`
+	Attempts   int      `json:"attempts"`
 }
 
 // account is a user on a Domain and every address that reaches it.

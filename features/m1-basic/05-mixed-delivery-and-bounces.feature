@@ -30,7 +30,7 @@ Feature: A message to many people is delivered where it can be and bounced where
     And within 30 seconds Bob has one bounce "Delivery failed: Party" naming both unknown addresses
     And it is from "mailer-daemon@example.com"
 
-  @outage @wip
+  @outage
   Scenario: A Domain that never comes back produces a bounce after the retry budget
     Given the retry budget on 103mail.com is 2 minutes
     When mail.acme.test goes down for good

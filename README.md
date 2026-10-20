@@ -118,6 +118,11 @@ The compose stack in `../webmail-server/deploy` grows to what the stories need:
   clock forward (the server takes the time from Go, never from the database),
   and set test values for the retry budget (2 minutes instead of 72 hours), the
   descriptor cache and the rate limit. A story that relies on one says so in a `Given`.
+  Taking a Domain down and the retry budget are built (`outage.go`): they stop
+  and start the containers labelled with the Domain, and recreate its worker
+  with a shorter budget. Whatever a story changes is put back after it, even
+  when it fails. The clock, the descriptor cache and the rate limit are not
+  built yet.
 
 ## Runner
 

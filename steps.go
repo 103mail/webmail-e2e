@@ -57,6 +57,7 @@ func (w *world) register(sc *godog.ScenarioContext) {
 	sc.Step(`^within (\d+) seconds (.+) sees? the reply$`, w.seeTheReply)
 
 	w.registerMembership(sc)
+	w.registerOutage(sc)
 
 	// Email checks look only at what was sent during this story.
 	sc.Before(func(ctx context.Context, _ *godog.Scenario) (context.Context, error) {

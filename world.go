@@ -58,6 +58,10 @@ type world struct {
 	}
 	// lastQuote is the text the last quoting step quoted.
 	lastQuote string
+	// downed and budgets are what the story changed in the stack, which is
+	// put back after it.
+	downed  []string
+	budgets []string
 	// lastBounce is the bounce a following "it" refers to.
 	lastBounce bounce
 	// bounceCounts is how many bounces for a subject a person had when last
