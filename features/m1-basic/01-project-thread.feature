@@ -14,7 +14,7 @@ Feature: A project runs on one thread across three Domains
     Then Alice's send is confirmed within 2 seconds
     And within 30 seconds everyone sees:
       | person | folder | thread           | messages | unread |
-      | Alice  | Sent   | Website relaunch | 1        | no     |
+      | Alice  | Inbox  | Website relaunch | 1        | no     |
       | Ann    | Inbox  | Website relaunch | 1        | yes    |
       | Bob    | Inbox  | Website relaunch | 1        | yes    |
       | Carol  | Inbox  | Website relaunch | 1        | yes    |
