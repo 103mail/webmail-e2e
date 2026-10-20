@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 )
 
 // Session is one person signed in to their own Domain's public API.
@@ -195,4 +196,40 @@ func (s *Session) markRead(ctx context.Context, messageID int64) error {
 		return fmt.Errorf("marking message %d read was refused", messageID)
 	}
 	return nil
+}
+
+// try makes a call that the story expects may be refused, and returns the
+// status and the error code of the answer instead of failing on them.
+func (s *Session) try(ctx context.Context, method, path string, in any) (int, string, error) {
+	var body io.Reader
+	if in != nil {
+		buf, err := json.Marshal(in)
+		if err != nil {
+			return 0, "", err
+		}
+		body = bytes.NewReader(buf)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, s.stack.baseURL(s.domain)+path, body)
+	if err != nil {
+		return 0, "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+s.token)
+	resp, err := s.stack.http.Do(req)
+	if err != nil {
+		return 0, "", err
+	}
+	defer resp.Body.Close()
+	var answer struct {
+		Error string `json:"error"`
+	}
+	raw, _ := io.ReadAll(resp.Body)
+	_ = json.Unmarshal(raw, &answer)
+	return resp.StatusCode, answer.Error, nil
+}
+
+func (s *Session) leave(ctx context.Context, threadID int64, address string) error {
+	var ok bool
+	return s.do(ctx, http.MethodDelete,
+		fmt.Sprintf("/api/v1/email/subscriber/%d?email=%s", threadID, url.QueryEscape(address)), nil, &ok)
 }

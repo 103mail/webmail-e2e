@@ -163,6 +163,7 @@ in the suite.
 | 4.1.1 Subdomain Domains | `m1-basic/09-subdomains-and-parents` |
 | 5, 5.4 Envelope and idempotency | `m1-basic/01-project-thread`, `m1-basic/06-hostile-peer` |
 | 5.5 Message order | `m1-basic/01-project-thread` |
+| 5.6 Membership changes | `m1-basic/02-membership-across-domains`, `m1-basic/05-mixed-delivery-and-bounces` |
 | 6.2 Signature | `m1-basic/06-hostile-peer` |
 | 6.3, 6.4 Responses and retry | `m1-basic/04-outages`, `m1-basic/08-allowlists-and-rate-limits` |
 | 6.5 Bounces | `m1-basic/05-mixed-delivery-and-bounces` |

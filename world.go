@@ -29,6 +29,8 @@ type conversation struct {
 	// others are addresses the author wrote to that belong to nobody in the
 	// story, such as an address that does not exist.
 	others []string
+	// left are people who left the thread; they are no longer members.
+	left []*person
 }
 
 // world is the state of one running story. Every story gets a new one, with
@@ -48,6 +50,14 @@ type world struct {
 	lastSubject string
 	// lastReply is the body of the most recent reply, "the reply".
 	lastReply string
+	// lastAttempt is the answer to the last call the story expected might be
+	// refused, such as a reply after leaving.
+	lastAttempt struct {
+		status int
+		code   string
+	}
+	// lastQuote is the text the last quoting step quoted.
+	lastQuote string
 	// lastBounce is the bounce a following "it" refers to.
 	lastBounce bounce
 	// bounceCounts is how many bounces for a subject a person had when last

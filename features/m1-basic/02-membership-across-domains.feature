@@ -1,4 +1,4 @@
-@M1 @wip @rfc-5
+@M1 @rfc-5 @rfc-5.6
 Feature: People join and leave a thread from any Domain
   As members of a cross-domain thread
   We want invitations and departures to look the same on every Domain
@@ -13,20 +13,24 @@ Feature: People join and leave a thread from any Domain
     Given Alice wrote to Bob and Erin: "Vendor selection" with the body "Shortlist: three vendors, decision by Friday"
     And Bob replied to "Vendor selection": "I prefer vendor B"
 
+    # An invitation is a message in the thread, which is how every Domain learns
+    # of it, and the new member also gets the messages before it.
     When Bob invites Chris to "Vendor selection"
-    Then within 30 seconds Chris has "Vendor selection" in his Inbox with 2 messages
+    Then within 30 seconds Chris has "Vendor selection" in his Inbox with 3 messages, the last saying Bob added him
     And Chris can read "Shortlist: three vendors, decision by Friday"
-    And every member sees Alice, Bob, Erin and Chris as members of "Vendor selection"
+    And within 30 seconds every member sees Alice, Bob, Erin and Chris as members of "Vendor selection"
 
+    # The two earlier messages, Bob's note that he added Chris, and Erin's note
+    # for each of the two people she adds.
     When Erin invites Eddie and Arjen to "Vendor selection"
-    Then within 30 seconds Eddie and Arjen each have "Vendor selection" with 2 messages
-    And every member sees Alice, Bob, Erin, Chris, Eddie and Arjen as members
+    Then within 30 seconds Eddie and Arjen each have "Vendor selection" with 5 messages
+    And within 30 seconds every member sees Alice, Bob, Erin, Chris, Eddie and Arjen as members
 
     When Chris leaves "Vendor selection"
     And Alice replies to "Vendor selection": "Going with vendor B"
     Then within 30 seconds Bob, Erin, Eddie and Arjen see "Going with vendor B"
     And Chris does not see "Going with vendor B"
-    And every remaining member sees Alice, Bob, Erin, Eddie and Arjen as members
+    And within 30 seconds every remaining member sees Alice, Bob, Erin, Eddie and Arjen as members
 
     When Chris tries to reply to "Vendor selection": "Wait, one more thing"
     Then Chris's reply is refused because he is no longer a member
