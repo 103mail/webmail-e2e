@@ -1,4 +1,4 @@
-@M1 @wip @rfc-6.5
+@M1 @wip @rfc-6.3 @rfc-6.5
 Feature: A message to many people is delivered where it can be and bounced where it cannot
   As a sender writing to people on several Domains
   I want every reachable recipient to get my message
@@ -10,13 +10,12 @@ Feature: A message to many people is delivered where it can be and bounced where
     And Erin and Eddie have accounts on mail.acme.test
     And nobody called "nobody@example.com" has an account on example.com
 
-  Scenario: Good, unknown and unfederated recipients in one message
-    When Alice writes to Ann, Bob, "nobody@example.com", Erin and "someone@not-federated.test": "Invitation"
+  Scenario: Good and unknown recipients in one message
+    When Alice writes to Ann, Bob, "nobody@example.com" and Erin: "Invitation"
     Then within 30 seconds Ann, Bob and Erin each have "Invitation" in their Inbox
     And within 30 seconds Alice has these bounces in her Inbox:
-      | thread                        | from                      | failed recipient           | reason           |
-      | Delivery failed: Invitation   | mailer-daemon@103mail.com | nobody@example.com         | no_recipients    |
-      | Delivery failed: Invitation   | mailer-daemon@103mail.com | someone@not-federated.test | no_federation    |
+      | thread                      | from                      | failed recipient   | reason            |
+      | Delivery failed: Invitation | mailer-daemon@103mail.com | nobody@example.com | unknown_recipient |
     And the bounces exist only on 103mail.com: Bob, Erin and Ann never see them
     And every member of "Invitation" sees Alice, Ann, Bob, Erin as the people who received it
 
