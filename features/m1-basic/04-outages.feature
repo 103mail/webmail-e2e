@@ -8,9 +8,8 @@ Feature: Conversations survive Domains going down
     Given Alice and Ann have accounts on 103mail.com
     And Bob and Carol have accounts on example.com
     And Erin and Eddie have accounts on mail.acme.test
-    And Alice wrote to Ann, Bob, Carol, Erin and Eddie: "Release planning"
+    And Alice wrote to Ann, Bob, Carol, Erin and Eddie: "Release planning" with the body "Kick-off"
 
-  @wip
   Scenario: One Domain is down for an hour of conversation
     Given within 30 seconds everyone has "Release planning" with 1 message
 
@@ -26,7 +25,7 @@ Feature: Conversations survive Domains going down
     Then within 3 minutes Bob and Carol see "Release planning" with 4 messages
     And the thread "Release planning" reads the same for everyone:
       | from                | body               |
-      | alice@103mail.com   | (kick-off)         |
+      | alice@103mail.com   | Kick-off           |
       | alice@103mail.com   | Freeze on the 12th |
       | erin@mail.acme.test | QA needs two days  |
       | ann@103mail.com     | Docs are ready     |
@@ -35,7 +34,6 @@ Feature: Conversations survive Domains going down
     When Bob replies to "Release planning": "Sorry, we were down"
     Then within 30 seconds everyone sees 5 messages on "Release planning"
 
-  @wip
   Scenario: Two Domains are down at once and return in a different order
     When example.com goes down
     And mail.acme.test goes down
@@ -47,7 +45,6 @@ Feature: Conversations survive Domains going down
     When example.com comes back
     Then within 3 minutes everyone sees 3 messages on "Release planning", in the same order
 
-  @wip
   Scenario: A Domain that goes down while it is sending catches up on both directions
     When mail.acme.test goes down
     And Bob replies to "Release planning": "Ship it"
@@ -80,6 +77,6 @@ Feature: Conversations survive Domains going down
     Then within 2 minutes Erin and Eddie see "Decision: ship on the 14th"
     And within 30 seconds the thread "Release planning" reads the same for everyone:
       | from              | body                       |
-      | alice@103mail.com |                            |
+      | alice@103mail.com | Kick-off                   |
       | alice@103mail.com | Decision: ship on the 14th |
     And nobody has a duplicate message

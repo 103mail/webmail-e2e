@@ -58,6 +58,7 @@ func (w *world) register(sc *godog.ScenarioContext) {
 
 	w.registerMembership(sc)
 	w.registerOutage(sc)
+	w.registerCatchUp(sc)
 
 	// Email checks look only at what was sent during this story.
 	sc.Before(func(ctx context.Context, _ *godog.Scenario) (context.Context, error) {
@@ -119,6 +120,7 @@ func (w *world) writes(ctx context.Context, author, list, subject, body string) 
 		return fmt.Errorf("%s writes %q: %w", author, subject, err)
 	}
 	w.lastSend.author, w.lastSend.took = author, time.Since(start)
+	w.sends = append(w.sends, w.lastSend.took)
 	w.conversations = append(w.conversations, &conversation{
 		author: p, subject: subject, members: append([]*person{p}, recipients...),
 		writers: []*person{p}, others: others,
@@ -140,12 +142,15 @@ func (w *world) replies(ctx context.Context, who, owner, subject, body string) e
 	if err != nil {
 		return err
 	}
+	start := time.Now()
 	if _, err := p.session.addMessage(ctx, t.ThreadID, body); err != nil {
 		return fmt.Errorf("%s replies to %q: %w", who, subject, err)
 	}
+	w.sends = append(w.sends, time.Since(start))
 	c.wrote(p)
 	w.lastSubject = subject
 	w.lastReply = body
+	w.replyBy[p.name] = body
 	return nil
 }
 

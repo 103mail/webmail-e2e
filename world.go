@@ -48,8 +48,12 @@ type world struct {
 	}
 	// lastSubject is the thread a following "it" refers to.
 	lastSubject string
-	// lastReply is the body of the most recent reply, "the reply".
+	// lastReply is the body of the most recent reply, "the reply", and
+	// replyBy each person's most recent one, "Erin's reply".
 	lastReply string
+	replyBy   map[string]string
+	// sends is how long each send since the last check took to be accepted.
+	sends []time.Duration
 	// lastAttempt is the answer to the last call the story expected might be
 	// refused, such as a reply after leaving.
 	lastAttempt struct {
@@ -77,7 +81,7 @@ func newWorld(stack *Stack) *world {
 	buf := make([]byte, 4)
 	rand.Read(buf)
 	return &world{stack: stack, run: hex.EncodeToString(buf), people: map[string]*person{},
-		bounceCounts: map[string]map[string]int{}}
+		bounceCounts: map[string]map[string]int{}, replyBy: map[string]string{}}
 }
 
 // canonical is the address a story writes for a person, such as
@@ -302,22 +306,71 @@ func (p *person) defaultFolder(ctx context.Context) (int64, error) {
 	return 0, fmt.Errorf("%s has no default folder to write in", p.name)
 }
 
-// eventually runs check until it passes or the deadline is reached, and then
-// reports what was still wrong. Nothing in the suite sleeps for a fixed time.
+// passTime moves the stack's clock forward (Stack.passTime). It is nil when
+// there is no stack to move, and then deadlines are waited out for real.
+var passTime func(ctx context.Context, d time.Duration) error
+
+// How virtual time is spent: each poll that fails moves the clock timeStep
+// forward, until the step's deadline has passed in virtual time. After that
+// the step keeps polling for realGrace, which is the real time the workers
+// need to act on the last move. A step therefore never waits out minutes of
+// retry backoff or budget: it makes them pass.
+const (
+	pollEvery = 250 * time.Millisecond
+	timeStep  = 5 * time.Second
+	realGrace = 20 * time.Second
+)
+
+// eventually runs check until it passes or the deadline has passed, in
+// virtual time when the stack's clock can be moved, and then reports what
+// was still wrong. Nothing in the suite sleeps for a fixed time.
 func eventually(ctx context.Context, seconds int, check func() error) error {
-	deadline := time.Now().Add(time.Duration(seconds) * time.Second)
+	if passTime == nil {
+		return pollReal(ctx, time.Duration(seconds)*time.Second, check)
+	}
+	budget := time.Duration(seconds) * time.Second
+	var passed time.Duration
+	var graceEnds time.Time
+	for {
+		err := check()
+		if err == nil {
+			return nil
+		}
+		if passed < budget {
+			step := min(timeStep, budget-passed)
+			if moveErr := passTime(ctx, step); moveErr != nil {
+				return errors.Join(moveErr, err)
+			}
+			passed += step
+		} else if graceEnds.IsZero() {
+			graceEnds = time.Now().Add(realGrace)
+		} else if time.Now().After(graceEnds) {
+			return fmt.Errorf("still not so after %d seconds:\n%w", seconds, err)
+		}
+		select {
+		case <-ctx.Done():
+			return errors.Join(ctx.Err(), err)
+		case <-time.After(pollEvery):
+		}
+	}
+}
+
+// pollReal runs check until it passes or real time runs out, for waits that
+// no clock speeds up, such as containers starting.
+func pollReal(ctx context.Context, limit time.Duration, check func() error) error {
+	deadline := time.Now().Add(limit)
 	for {
 		err := check()
 		if err == nil {
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("still not so after %d seconds:\n%w", seconds, err)
+			return fmt.Errorf("still not so after %s:\n%w", limit, err)
 		}
 		select {
 		case <-ctx.Done():
 			return errors.Join(ctx.Err(), err)
-		case <-time.After(250 * time.Millisecond):
+		case <-time.After(pollEvery):
 		}
 	}
 }

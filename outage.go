@@ -56,7 +56,40 @@ func (s *Stack) up(ctx context.Context, domain string) error {
 	if out, err := exec.CommandContext(ctx, "docker", append([]string{"start"}, ids...)...).CombinedOutput(); err != nil {
 		return fmt.Errorf("bring %s back: %w: %s", domain, err, out)
 	}
-	return eventually(ctx, 60, func() error { return s.health(ctx, domain) })
+	return pollReal(ctx, time.Minute, func() error { return s.health(ctx, domain) })
+}
+
+// passTime moves the clock every Domain shares forward by d: the offset in
+// deploy/clock/offset, which each API and worker adds to the real time
+// (WEBMAIL_CLOCK_FILE). It is replaced whole, so a server never reads half a
+// file, and it only ever moves forward.
+func (s *Stack) passTime(ctx context.Context, d time.Duration) error {
+	dir := filepath.Join(s.deployDir, "clock")
+	path := filepath.Join(dir, "offset")
+	var offset time.Duration
+	if raw, err := os.ReadFile(path); err == nil {
+		if offset, err = time.ParseDuration(strings.TrimSpace(string(raw))); err != nil {
+			return fmt.Errorf("read the stack's clock offset: %w", err)
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("read the stack's clock offset: %w", err)
+	}
+	tmp, err := os.CreateTemp(dir, "offset-*")
+	if err != nil {
+		return fmt.Errorf("move the stack's clock (run deploy/setup.sh first): %w", err)
+	}
+	if _, err := tmp.WriteString((offset + d).String() + "\n"); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	// Readable by the servers, which run as another user.
+	if err := os.Chmod(tmp.Name(), 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }
 
 // budgetVariable is the compose variable that sets a Domain's retry budget.
@@ -197,8 +230,9 @@ func (w *world) bounceSaysResend() error {
 	return nil
 }
 
-// noFurtherAttempt watches a Domain's envelopes for this story for a while:
-// none may be attempted again or re-queued while the peer stays away.
+// noFurtherAttempt watches a Domain's envelopes for this story while ten
+// minutes pass on the stack's clock: none may be attempted again or
+// re-queued while the peer stays away.
 func (w *world) noFurtherAttempt(ctx context.Context, domain, subject string) error {
 	snapshot := func() (string, error) {
 		all, err := w.stack.envelopes(ctx, domain)
@@ -220,19 +254,23 @@ func (w *world) noFurtherAttempt(ctx context.Context, domain, subject string) er
 	if strings.Contains(before, "pending") {
 		return fmt.Errorf("%s still has envelopes pending:\n%s", domain, before)
 	}
-	deadline := time.Now().Add(20 * time.Second)
-	for time.Now().Before(deadline) {
+	for passed := time.Duration(0); passed < 10*time.Minute; passed += 30 * time.Second {
+		if passTime != nil {
+			if err := passTime(ctx, 30*time.Second); err != nil {
+				return err
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(300 * time.Millisecond):
+		}
 		after, err := snapshot()
 		if err != nil {
 			return err
 		}
 		if after != before {
 			return fmt.Errorf("%s tried again:\nbefore\n%s\nafter\n%s", domain, before, after)
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(time.Second):
 		}
 	}
 	return nil

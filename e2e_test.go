@@ -33,6 +33,8 @@ func TestFeatures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Steps make time pass on the stack's clock instead of waiting for it.
+	passTime = stack.passTime
 	suite := godog.TestSuite{
 		Name: "webmail-e2e",
 		ScenarioInitializer: func(sc *godog.ScenarioContext) {

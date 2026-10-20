@@ -121,8 +121,21 @@ The compose stack in `../webmail-server/deploy` grows to what the stories need:
   Taking a Domain down and the retry budget are built (`outage.go`): they stop
   and start the containers labelled with the Domain, and recreate its worker
   with a shorter budget. Whatever a story changes is put back after it, even
-  when it fails. The clock, the descriptor cache and the rate limit are not
-  built yet.
+  when it fails. The clock is built too, as one clock for the whole stack: see
+  "Time" below. The descriptor cache and the rate limit are not built yet.
+
+## Time
+
+A deadline such as "within 3 minutes" is not waited out. The stack's clock is
+the real one plus an offset every Domain reads (`deploy/clock/offset`), and
+while a step's check fails, the step moves that offset forward a few seconds
+at a time and checks again a quarter of a second later. Retries, backoffs, the
+retry budget and the backfill probe all run on that clock, so minutes of them
+pass in seconds. Once the deadline has passed in virtual time, the step keeps
+checking for up to 20 real seconds, the time the workers need to act on the
+last move, and then fails. Only things no clock speeds up are waited for in
+real time, such as a container starting. The offset only grows: moving it back
+would put new messages before old ones.
 
 ## Runner
 
