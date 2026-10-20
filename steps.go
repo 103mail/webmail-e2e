@@ -38,10 +38,8 @@ func (w *world) register(sc *godog.ScenarioContext) {
 	sc.Step(`^(.+) never sees? "([^"]*)"$`, w.neverSee)
 	sc.Step(`^every person's contact suggestions now include everyone they exchanged mail with$`, w.contactsInclude)
 	sc.Step(`^no email has left any Domain containing:$`, w.noEmailContaining)
-
-	// Outcomes that need more of the test stack than exists yet.
-	sc.Step(`^(\S+) delivered exactly .+$`, pending("needs a view of delivered envelopes (the test peer or an outbox control)"))
-	sc.Step(`^(\S+) holds accounts only for its own people$`, pending("needs an account listing control per Domain"))
+	sc.Step(`^(\S+) delivered exactly (.+)$`, w.deliveredExactly)
+	sc.Step(`^(\S+) holds accounts only for its own people$`, w.ownPeopleOnly)
 
 	// Email checks look only at what was sent during this story.
 	sc.Before(func(ctx context.Context, _ *godog.Scenario) (context.Context, error) {
@@ -591,6 +589,87 @@ func (w *world) noEmailContaining(ctx context.Context, table *godog.Table) error
 		}
 	}
 	return errors.Join(errs...)
+}
+
+// envelopeCount reads one "one envelope to example.com" clause.
+var envelopeCount = regexp.MustCompile(`^(one|two|three|four|five|\d+)(?: envelopes?)? to (\S+)$`)
+
+var numbers = map[string]int{"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
+
+// deliveredExactly checks a Domain's outbox for this story's envelopes, as in
+// "103mail.com delivered exactly one envelope to example.com and one to
+// mail.acme.test". Every envelope must be delivered, and no peer that is not
+// named may have been sent one.
+func (w *world) deliveredExactly(ctx context.Context, origin, clauses string) error {
+	want := map[string]int{}
+	for _, clause := range strings.Split(clauses, " and ") {
+		m := envelopeCount.FindStringSubmatch(strings.TrimSpace(clause))
+		if m == nil {
+			return fmt.Errorf("cannot read %q; expected \"one envelope to example.com\"", clause)
+		}
+		n, ok := numbers[m[1]]
+		if !ok {
+			n, _ = strconv.Atoi(m[1])
+		}
+		want[m[2]] = n
+	}
+	all, err := w.stack.envelopes(ctx, origin)
+	if err != nil {
+		return err
+	}
+	got := map[string]int{}
+	var errs []error
+	for _, e := range all {
+		if !w.ours(e.Recipients...) {
+			continue
+		}
+		got[e.PeerDomain]++
+		if e.Status != "delivered" {
+			errs = append(errs, fmt.Errorf("envelope %d to %s is %s", e.ID, e.PeerDomain, e.Status))
+		}
+	}
+	for peer, n := range got {
+		if _, named := want[peer]; !named {
+			errs = append(errs, fmt.Errorf("%s sent %d envelopes to %s, expected none", origin, n, peer))
+		}
+	}
+	for peer, n := range want {
+		if got[peer] != n {
+			errs = append(errs, fmt.Errorf("%s sent %d envelopes to %s, expected %d", origin, got[peer], peer, n))
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// ownPeopleOnly checks that every account on a Domain that belongs to this
+// story is for one of its own people: someone on another Domain must never
+// get an account, or an address, here.
+func (w *world) ownPeopleOnly(ctx context.Context, domain string) error {
+	accounts, err := w.stack.accounts(ctx, domain)
+	if err != nil {
+		return err
+	}
+	var errs []error
+	for _, a := range accounts {
+		addresses := append([]string{a.Username}, a.Addresses...)
+		if !w.ours(addresses...) {
+			continue
+		}
+		for _, address := range addresses {
+			if !strings.HasSuffix(strings.ToLower(address), "@"+domain) {
+				errs = append(errs, fmt.Errorf("%s holds the account %s with the address %s",
+					domain, a.Username, address))
+			}
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// ours reports whether any of the addresses was made for this story run.
+func (w *world) ours(addresses ...string) bool {
+	return slices.ContainsFunc(addresses, func(a string) bool {
+		return strings.Contains(strings.ToLower(a), "."+w.run+"@")
+	})
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────

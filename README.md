@@ -140,6 +140,12 @@ The step definitions live in `steps.go`, with the per-story state in
 `world.go` and the API client in `client.go`. Steps whose phrase is agreed but
 whose stack control does not exist yet answer pending with the reason.
 
+What a Domain sent to its peers, and which accounts it holds, cannot be seen
+through the public API. Those steps read the read-only controls each Domain's
+API serves at `http://webmail.{domain}:8081/control/` (ADR 20 in
+`../webmail-server/docs/adr/`), and only look at envelopes and accounts that
+carry the story's own addresses.
+
 Until there is a signup API (M4), `Stack.Provision` creates each person's
 account by writing the same rows `deploy/seed.sh` writes into the Domain's
 SQLite file. That is a stack control, like taking a Domain down; no step reads
