@@ -24,6 +24,8 @@ type person struct {
 type conversation struct {
 	author  *person
 	subject string
+	// body is what the first message said.
+	body    string
 	members []*person
 	writers []*person
 	// others are addresses the author wrote to that belong to nobody in the
@@ -75,13 +77,36 @@ type world struct {
 	// so email checks see only what the story caused.
 	firstEmail    int
 	firstEmailErr error
+
+	// files are the bytes of every file attached in the story, by name, and
+	// attachedTo the threads each was attached to.
+	files      map[string][]byte
+	attachedTo map[string][]string
+	// lastAnswer is what a Domain last said to a refused send or to a request
+	// a story made as a peer.
+	lastAnswer answer
+	// attempts are the answers to the test peer's last table of attempts.
+	attempts []attempt
+	// reconfigured are the Domains whose federation config the story changed,
+	// and newKeys the key files it made, which are put back after it.
+	reconfigured []string
+	newKeys      []string
+	// keyBefore is a Domain's public key before the story rotated it.
+	keyBefore map[string]string
+	// armed is whether the story armed the fault proxy, and lostAt the
+	// Domain whose answer it was told to lose.
+	armed  bool
+	lostAt string
+	// discoveredPeers are the descriptors the last discovery check read.
+	discoveredPeers []pinnedPeer
 }
 
 func newWorld(stack *Stack) *world {
 	buf := make([]byte, 4)
 	rand.Read(buf)
 	return &world{stack: stack, run: hex.EncodeToString(buf), people: map[string]*person{},
-		bounceCounts: map[string]map[string]int{}, replyBy: map[string]string{}}
+		bounceCounts: map[string]map[string]int{}, replyBy: map[string]string{},
+		files: map[string][]byte{}, attachedTo: map[string][]string{}, keyBefore: map[string]string{}}
 }
 
 // canonical is the address a story writes for a person, such as

@@ -1,4 +1,4 @@
-@M1 @wip @rfc-4.3 @rfc-9.5
+@M1 @rfc-4.3 @rfc-9.5
 Feature: Domains change keys in the middle of a conversation
   As operators of federated Domains
   We want to rotate signing keys on our own schedule

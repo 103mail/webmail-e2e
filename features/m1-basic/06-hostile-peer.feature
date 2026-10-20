@@ -1,4 +1,4 @@
-@M1 @wip @protocol @rfc-5.4 @rfc-6.2 @rfc-6.3
+@M1 @protocol @rfc-5.4 @rfc-6.2 @rfc-6.3
 Feature: A hostile peer cannot break into a live conversation
   As members of a conversation across Domains
   We want forged, replayed and malformed traffic to be turned away
@@ -23,7 +23,7 @@ Feature: A hostile peer cannot break into a live conversation
       | a reply dated 10 minutes ago                                    | 401    | stale_request          |
       | a reply reusing a nonce it used a minute ago                    | 401    | replay                 |
       | a reply with protocol version "9.0"                             | 400    | unsupported_version    |
-      | a reply addressed to 101 recipients                             | 400    | malformed              |
+      | a reply addressed to 101 recipients                             | 400    | schema_violation       |
       | a reply larger than example.com's envelope limit                | 413    | too_large              |
       | a reply sent as plain text                                      | 415    | unsupported_media_type |
       | a reply with a compressed body                                  | 415    | unsupported_media_type |

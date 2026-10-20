@@ -52,7 +52,9 @@ func NewStack(deployDir, sinkURL string) (*Stack, error) {
 		deployDir: deployDir,
 		sinkURL:   sinkURL,
 		http: &http.Client{
-			Timeout:   10 * time.Second,
+			// Long enough to upload a file at the 25 MB limit, or an envelope
+			// past the 36 MB one, which the stories do on purpose.
+			Timeout:   60 * time.Second,
 			Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: pool}},
 		},
 		healthy: map[string]error{},

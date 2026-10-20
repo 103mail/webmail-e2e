@@ -1,4 +1,4 @@
-@M1 @wip @rfc-7
+@M1 @rfc-7
 Feature: Files travel intact between Domains
   As people sharing files across Domains
   We want every recipient to get exactly the bytes the sender attached

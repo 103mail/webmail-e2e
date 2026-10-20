@@ -1,4 +1,4 @@
-@M1 @wip @protocol @rfc-9.7 @rfc-9.10
+@M1 @protocol @rfc-9.7 @rfc-9.10
 Feature: Operators decide who may send and how fast
   As operators of private and public Domains
   We want a private Domain to talk only to peers it chose

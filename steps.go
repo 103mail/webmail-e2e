@@ -57,6 +57,8 @@ func (w *world) register(sc *godog.ScenarioContext) {
 	sc.Step(`^within (\d+) seconds (.+) sees? the reply$`, w.seeTheReply)
 
 	w.registerMembership(sc)
+	w.registerAttachments(sc)
+	w.registerTrust(sc)
 	w.registerOutage(sc)
 	w.registerCatchUp(sc)
 
@@ -98,6 +100,11 @@ func (w *world) haveAccounts(ctx context.Context, list, domain string) error {
 // ── Acts ────────────────────────────────────────────────────────────────────
 
 func (w *world) writes(ctx context.Context, author, list, subject, body string) error {
+	return w.writeWith(ctx, author, list, subject, body)
+}
+
+// writeWith starts a thread, with files attached when there are any.
+func (w *world) writeWith(ctx context.Context, author, list, subject, body string, files ...upload) error {
 	p, err := w.person(author)
 	if err != nil {
 		return err
@@ -116,13 +123,13 @@ func (w *world) writes(ctx context.Context, author, list, subject, body string) 
 	}
 	addresses = append(addresses, others...)
 	start := time.Now()
-	if _, err := p.session.addThread(ctx, folderID, addresses, subject, body); err != nil {
+	if _, err := p.session.addThread(ctx, folderID, addresses, subject, body, files...); err != nil {
 		return fmt.Errorf("%s writes %q: %w", author, subject, err)
 	}
 	w.lastSend.author, w.lastSend.took = author, time.Since(start)
 	w.sends = append(w.sends, w.lastSend.took)
 	w.conversations = append(w.conversations, &conversation{
-		author: p, subject: subject, members: append([]*person{p}, recipients...),
+		author: p, subject: subject, body: body, members: append([]*person{p}, recipients...),
 		writers: []*person{p}, others: others,
 	})
 	w.lastSubject = subject
@@ -130,6 +137,12 @@ func (w *world) writes(ctx context.Context, author, list, subject, body string) 
 }
 
 func (w *world) replies(ctx context.Context, who, owner, subject, body string) error {
+	return w.replyWith(ctx, who, owner, subject, body)
+}
+
+// replyWith adds a message to a thread, with files attached when there are
+// any.
+func (w *world) replyWith(ctx context.Context, who, owner, subject, body string, files ...upload) error {
 	p, err := w.person(who)
 	if err != nil {
 		return err
@@ -143,7 +156,7 @@ func (w *world) replies(ctx context.Context, who, owner, subject, body string) e
 		return err
 	}
 	start := time.Now()
-	if _, err := p.session.addMessage(ctx, t.ThreadID, body); err != nil {
+	if _, err := p.session.addMessage(ctx, t.ThreadID, body, files...); err != nil {
 		return fmt.Errorf("%s replies to %q: %w", who, subject, err)
 	}
 	w.sends = append(w.sends, time.Since(start))
@@ -333,7 +346,12 @@ func (w *world) readsTheSame(ctx context.Context, seconds int, subject string, t
 	}
 	var want []string
 	for _, row := range rows[1:] {
-		want = append(want, w.rewrite(row[0])+": "+row[1])
+		body := row[1]
+		if body == "(kick-off)" {
+			// The message that started the thread, whatever it said.
+			body = c.body
+		}
+		want = append(want, w.rewrite(row[0])+": "+body)
 	}
 	return eventually(ctx, seconds, func() error {
 		var errs []error

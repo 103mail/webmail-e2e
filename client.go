@@ -45,10 +45,26 @@ type thread struct {
 }
 
 type message struct {
-	MessageID   int64   `json:"messageId"`
-	SenderEmail string  `json:"senderEmail"`
-	Body        string  `json:"body"`
-	ReadAt      *string `json:"readAt"`
+	MessageID   int64           `json:"messageId"`
+	SenderEmail string          `json:"senderEmail"`
+	Body        string          `json:"body"`
+	ReadAt      *string         `json:"readAt"`
+	Attachments []attachmentRef `json:"attachments"`
+}
+
+// attachmentRef is a file on a message, as the message list shows it.
+type attachmentRef struct {
+	AttachmentID int64  `json:"attachmentId"`
+	FileName     string `json:"fileName"`
+	FileSize     int64  `json:"fileSize"`
+}
+
+// upload is a file to attach, as the compose endpoints take it. The bytes go
+// as base64, which is what []byte becomes in JSON.
+type upload struct {
+	FileName string `json:"fileName"`
+	MimeType string `json:"mimeType"`
+	FileData []byte `json:"fileData"`
 }
 
 type contact struct {
@@ -106,7 +122,16 @@ func (s *Session) do(ctx context.Context, method, path string, in, out any) erro
 		return err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("%s %s answered %d: %s", method, path, resp.StatusCode, bytes.TrimSpace(raw))
+		refusal := &apiError{status: resp.StatusCode,
+			message: fmt.Sprintf("%s %s answered %d: %s", method, path, resp.StatusCode, bytes.TrimSpace(raw))}
+		var answer struct {
+			Error  string `json:"error"`
+			Detail string `json:"detail"`
+		}
+		if json.Unmarshal(raw, &answer) == nil {
+			refusal.code, refusal.detail = answer.Error, answer.Detail
+		}
+		return refusal
 	}
 	if out == nil {
 		return nil
@@ -116,6 +141,16 @@ func (s *Session) do(ctx context.Context, method, path string, in, out any) erro
 	}
 	return nil
 }
+
+// apiError is an answer other than 200, with the error code and detail the
+// API gave, so a step that expects a refusal can read why.
+type apiError struct {
+	status       int
+	code, detail string
+	message      string
+}
+
+func (e *apiError) Error() string { return e.message }
 
 // created checks the id a POST answers with. The API reports a create it
 // refused as 0 with status 200, so 0 is a failure here.
@@ -166,18 +201,36 @@ func (s *Session) contacts(ctx context.Context) ([]contact, error) {
 	return out, err
 }
 
-func (s *Session) addThread(ctx context.Context, folderID int64, subscribers []string, subject, body string) (int64, error) {
+func (s *Session) addThread(ctx context.Context, folderID int64, subscribers []string, subject, body string,
+	files ...upload) (int64, error) {
 	var id int64
 	err := s.do(ctx, http.MethodPost, fmt.Sprintf("/api/v1/email/thread/%d", folderID),
-		map[string]any{"subject": subject, "subscribers": subscribers, "body": body}, &id)
+		map[string]any{"subject": subject, "subscribers": subscribers, "body": body, "attachments": uploads(files)}, &id)
 	return created("new thread", id, err)
 }
 
-func (s *Session) addMessage(ctx context.Context, threadID int64, body string) (int64, error) {
+func (s *Session) addMessage(ctx context.Context, threadID int64, body string, files ...upload) (int64, error) {
 	var id int64
 	err := s.do(ctx, http.MethodPost, fmt.Sprintf("/api/v1/email/message/%d", threadID),
-		map[string]any{"body": body}, &id)
+		map[string]any{"body": body, "attachments": uploads(files)}, &id)
 	return created("reply", id, err)
+}
+
+// uploads sends an empty list rather than null when there are no files.
+func uploads(files []upload) []upload {
+	if files == nil {
+		return []upload{}
+	}
+	return files
+}
+
+// download reads an attachment's bytes as the person sees them.
+func (s *Session) download(ctx context.Context, attachmentID int64) ([]byte, error) {
+	var out struct {
+		FileData []byte `json:"fileData"`
+	}
+	err := s.do(ctx, http.MethodGet, fmt.Sprintf("/api/v1/email/attachment/%d", attachmentID), nil, &out)
+	return out.FileData, err
 }
 
 func (s *Session) addSubscriber(ctx context.Context, threadID int64, address string) (int64, error) {
@@ -201,31 +254,38 @@ func (s *Session) markRead(ctx context.Context, messageID int64) error {
 // try makes a call that the story expects may be refused, and returns the
 // status and the error code of the answer instead of failing on them.
 func (s *Session) try(ctx context.Context, method, path string, in any) (int, string, error) {
+	status, code, _, err := s.tryDetail(ctx, method, path, in)
+	return status, code, err
+}
+
+// tryDetail is try, and also returns the detail the answer gave.
+func (s *Session) tryDetail(ctx context.Context, method, path string, in any) (int, string, string, error) {
 	var body io.Reader
 	if in != nil {
 		buf, err := json.Marshal(in)
 		if err != nil {
-			return 0, "", err
+			return 0, "", "", err
 		}
 		body = bytes.NewReader(buf)
 	}
 	req, err := http.NewRequestWithContext(ctx, method, s.stack.baseURL(s.domain)+path, body)
 	if err != nil {
-		return 0, "", err
+		return 0, "", "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+s.token)
 	resp, err := s.stack.http.Do(req)
 	if err != nil {
-		return 0, "", err
+		return 0, "", "", err
 	}
 	defer resp.Body.Close()
 	var answer struct {
-		Error string `json:"error"`
+		Error  string `json:"error"`
+		Detail string `json:"detail"`
 	}
 	raw, _ := io.ReadAll(resp.Body)
 	_ = json.Unmarshal(raw, &answer)
-	return resp.StatusCode, answer.Error, nil
+	return resp.StatusCode, answer.Error, answer.Detail, nil
 }
 
 func (s *Session) leave(ctx context.Context, threadID int64, address string) error {

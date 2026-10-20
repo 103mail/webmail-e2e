@@ -1,4 +1,4 @@
-@M1 @wip @rfc-4 @rfc-4.1.1
+@M1 @rfc-4 @rfc-4.1.1
 Feature: A subdomain and its parent are strangers
   As a company running acme.test and mail.acme.test as separate Domains
   We want each to federate on its own keys and speak only for its own people

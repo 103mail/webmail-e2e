@@ -105,9 +105,12 @@ The compose stack in `../webmail-server/deploy` grows to what the stories need:
   There are no database containers: the whole suite runs on SQLite, while
   production runs PostgreSQL on the same portable SQL (ADR 19 in
   `../webmail-server/docs/adr/`).
-- **The test peer** (`peer.test`): a small service the steps control. It
-  publishes a descriptor and key, sends envelopes that are stale, replayed,
-  mis-signed, oversized or forged, and records everything it receives.
+- **The test peer** (`peer.test`): a Domain like the others in the stack,
+  publishing a real descriptor from its own key, that nobody uses. The steps
+  sign envelopes with its key (`deploy/keys/peer.test.ed25519.pem`) and send
+  them as it: stale, replayed, mis-signed, oversized, forged, or from someone
+  who is not on the thread (`peer.go`). A step can speak as any Domain of the
+  stack the same way, with that Domain's key, to try to speak for another.
 - **The mail sink**: outbound email from every Domain is captured instead of
   sent, so stories can read invitations and prove that no content left. It
   stands in for SNS, so each server publishes through its production path,
@@ -123,6 +126,13 @@ The compose stack in `../webmail-server/deploy` grows to what the stories need:
   with a shorter budget. Whatever a story changes is put back after it, even
   when it fails. The clock is built too, as one clock for the whole stack: see
   "Time" below. The descriptor cache and the rate limit are not built yet.
+  A story can also change a Domain's federation config for its duration,
+  through `FEDERATION_CONFIG_<DOMAIN>`: an allowlist, a smaller attachment
+  limit, or a rotated key with the old one published as previous
+  (`reconfigure.go`). And every federation request passes through a fault
+  proxy, `deploy/faults`, which a story can arm at `http://127.0.0.1:8026` (or
+  `WEBMAIL_E2E_FAULTS`) to lose an answer or to refuse with a given status.
+  Both are put back after the story.
 
 ## Time
 
