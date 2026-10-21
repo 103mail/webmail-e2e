@@ -204,13 +204,16 @@ func (w *world) leaves(ctx context.Context, who, subject string) error {
 }
 
 func (w *world) eventuallySee(ctx context.Context, seconds int, list, body string) error {
-	people, err := w.persons(list)
-	if err != nil {
-		return err
-	}
 	c, err := w.conversation("", w.lastSubject)
 	if err != nil {
 		return err
+	}
+	// "everyone" is every member of the thread.
+	people := c.members
+	if list != "everyone" {
+		if people, err = w.persons(list); err != nil {
+			return err
+		}
 	}
 	return eventually(ctx, seconds, func() error {
 		var errs []error

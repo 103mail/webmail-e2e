@@ -91,8 +91,10 @@ type world struct {
 	// and newKeys the key files it made, which are put back after it.
 	reconfigured []string
 	newKeys      []string
-	// keyBefore is a Domain's public key before the story rotated it.
+	// keyBefore is a Domain's public key before the story rotated it, and
+	// oldKey the file holding the private half.
 	keyBefore map[string]string
+	oldKey    map[string]string
 	// armed is whether the story armed the fault proxy, and lostAt the
 	// Domain whose answer it was told to lose.
 	armed  bool
@@ -106,7 +108,7 @@ func newWorld(stack *Stack) *world {
 	rand.Read(buf)
 	return &world{stack: stack, run: hex.EncodeToString(buf), people: map[string]*person{},
 		bounceCounts: map[string]map[string]int{}, replyBy: map[string]string{},
-		files: map[string][]byte{}, attachedTo: map[string][]string{}, keyBefore: map[string]string{}}
+		files: map[string][]byte{}, attachedTo: map[string][]string{}, keyBefore: map[string]string{}, oldKey: map[string]string{}}
 }
 
 // canonical is the address a story writes for a person, such as

@@ -18,7 +18,6 @@ Feature: Domains change keys in the middle of a conversation
     Then within 30 seconds everyone sees 3 messages on "Roadmap"
     And 103mail.com and mail.acme.test now pin example.com's new key
 
-  @wip
   Scenario: We rotate our own key and stay trusted through the window
     When 103mail.com rotates its signing key
     Then 103mail.com's descriptor lists the old key as a previous key
@@ -28,7 +27,7 @@ Feature: Domains change keys in the middle of a conversation
     Then 103mail.com's descriptor no longer lists the old key
     When the test peer sends example.com a message signed with 103mail.com's old key
     Then example.com answers 401 "bad_signature"
-    And Ann replies to "Roadmap": "Still fine"
+    And Alice replies to "Roadmap": "Still fine"
     And within 30 seconds everyone sees "Still fine"
 
   @outage

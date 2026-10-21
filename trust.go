@@ -42,6 +42,9 @@ func (w *world) registerTrust(sc *godog.ScenarioContext) {
 	// Configuration
 	sc.Step(`^(\S+) rotates its signing key$`, w.rotates)
 	sc.Step(`^(.+) now pin (\S+)'s new key$`, w.pinNewKey)
+	sc.Step(`^(\S+)'s descriptor (lists|no longer lists) the old key(?: as a previous key)?$`, w.listsOldKey)
+	sc.Step(`^(\d+) hours pass on the test clock$`, w.hoursPass)
+	sc.Step(`^the test peer sends (\S+) a message signed with (\S+)'s old key$`, w.signedWithOldKey)
 	sc.Step(`^(\S+) only accepts mail from (.+)$`, w.onlyAccepts)
 
 	// Outcomes
@@ -460,9 +463,12 @@ func (w *world) rotates(ctx context.Context, domain string) error {
 	if !slices.Contains(w.reconfigured, domain) {
 		w.reconfigured = append(w.reconfigured, domain)
 	}
-	path, err := w.stack.rotateKey(ctx, domain, cfg)
+	path, old, err := w.stack.rotateKey(ctx, domain, cfg)
 	if path != "" {
 		w.newKeys = append(w.newKeys, path)
+	}
+	if _, ok := w.oldKey[domain]; !ok && old != "" {
+		w.oldKey[domain] = old
 	}
 	return err
 }
@@ -489,6 +495,81 @@ func (w *world) pinNewKey(ctx context.Context, list, rotated string) error {
 		}
 		return errors.Join(errs...)
 	})
+}
+
+// listsOldKey checks whether a Domain that rotated still publishes the key it
+// had before as a previous key. A Domain stops within 48 hours (RFC 9.5).
+func (w *world) listsOldKey(ctx context.Context, domain, lists string) error {
+	old, ok := w.keyBefore[domain]
+	if !ok {
+		return fmt.Errorf("%s has not rotated in this story", domain)
+	}
+	want := lists == "lists"
+	return eventually(ctx, 5, func() error {
+		d, err := w.stack.descriptor(ctx, domain)
+		if err != nil {
+			return err
+		}
+		previous, _ := d["previous_public_keys"].([]any)
+		if got := slices.Contains(previous, any(old)); got != want {
+			return fmt.Errorf("%s's descriptor lists previous keys %v; the old key %s in it is %v, want %v",
+				domain, previous, old, got, want)
+		}
+		if d["public_key"] == old {
+			return fmt.Errorf("%s still publishes the old key as its current one", domain)
+		}
+		return nil
+	})
+}
+
+func (w *world) hoursPass(ctx context.Context, hours int) error {
+	if passTime == nil {
+		return fmt.Errorf("the stack's clock cannot be moved")
+	}
+	return passTime(ctx, time.Duration(hours)*time.Hour)
+}
+
+// signedWithOldKey sends, as the Domain that rotated, a reply on the last
+// thread signed with the key it retired: what someone holding a leaked old
+// key would do once the Domain has stopped publishing it.
+func (w *world) signedWithOldKey(ctx context.Context, destination, origin string) error {
+	path, ok := w.oldKey[origin]
+	if !ok {
+		return fmt.Errorf("%s has not rotated in this story", origin)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	key, err := parseKey(raw)
+	if err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+	as, err := w.stack.sender(origin)
+	if err != nil {
+		return err
+	}
+	c, err := w.conversation("", w.lastSubject)
+	if err != nil {
+		return err
+	}
+	threadID, recipients, err := w.threadAt(ctx, destination, c)
+	if err != nil {
+		return err
+	}
+	var author string
+	for _, p := range c.members {
+		if p.domain == origin {
+			author = p.address
+		}
+	}
+	r, err := as.request(as.envelope(author, threadID, c.subject, "Signed with a retired key", recipients))
+	if err != nil {
+		return err
+	}
+	r.key = key
+	w.lastAnswer, err = as.send(ctx, destination, r)
+	return err
 }
 
 func (w *world) onlyAccepts(ctx context.Context, domain, list string) error {

@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -100,32 +101,57 @@ func (s *Stack) services(ctx context.Context, domain string, prefixes ...string)
 }
 
 // rotateKey gives a Domain a new signing key and publishes its current one as
-// a previous key, the way an operator rotates (RFC 9.5). The new key file is
-// returned so it can be removed after the story.
-func (s *Stack) rotateKey(ctx context.Context, domain string, cfg map[string]any) (string, error) {
+// a previous key, retired now by the stack's clock, the way an operator
+// rotates (RFC 9.5). It returns the new key file, so it can be removed after
+// the story, and the old one.
+func (s *Stack) rotateKey(ctx context.Context, domain string, cfg map[string]any) (string, string, error) {
 	_, key, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	der, err := x509.MarshalPKCS8PrivateKey(key)
 	if err != nil {
-		return "", err
+		return "", "", err
+	}
+	now, err := s.now()
+	if err != nil {
+		return "", "", err
 	}
 	name := fmt.Sprintf("%s.ed25519.%d.pem", domain, time.Now().UnixNano())
 	path := filepath.Join(s.deployDir, "keys", name)
 	// Readable by the servers, which run as another user.
 	if err := os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), 0o644); err != nil {
-		return "", fmt.Errorf("write a new key for %s: %w", domain, err)
+		return "", "", fmt.Errorf("write a new key for %s: %w", domain, err)
 	}
 	domains, _ := cfg["domains"].([]any)
 	if len(domains) != 1 {
-		return path, fmt.Errorf("the federation config of %s has %d domains, want 1", domain, len(domains))
+		return path, "", fmt.Errorf("the federation config of %s has %d domains, want 1", domain, len(domains))
 	}
 	d := domains[0].(map[string]any)
-	previous, _ := d["previousKeyFiles"].([]any)
-	d["previousKeyFiles"] = append([]any{d["privateKeyFile"]}, previous...)
+	current, _ := d["privateKeyFile"].(string)
+	previous, _ := d["previousKeys"].([]any)
+	d["previousKeys"] = append([]any{map[string]any{"file": current, "retiredAt": now.UTC().Format(time.RFC3339)}},
+		previous...)
 	d["privateKeyFile"] = "/etc/webmail/keys/" + name
-	return path, s.reconfigure(ctx, domain, cfg)
+	old := filepath.Join(s.deployDir, "keys", filepath.Base(current))
+	return path, old, s.reconfigure(ctx, domain, cfg)
+}
+
+// now is the time by the stack's clock: the real time plus the offset every
+// Domain adds (deploy/clock/offset).
+func (s *Stack) now() (time.Time, error) {
+	raw, err := os.ReadFile(filepath.Join(s.deployDir, "clock", "offset"))
+	if errors.Is(err, os.ErrNotExist) {
+		return time.Now(), nil
+	}
+	if err != nil {
+		return time.Time{}, fmt.Errorf("read the stack's clock: %w", err)
+	}
+	offset, err := time.ParseDuration(strings.TrimSpace(string(raw)))
+	if err != nil {
+		return time.Time{}, fmt.Errorf("read the stack's clock: %w", err)
+	}
+	return time.Now().Add(offset), nil
 }
 
 // fault is one rule for the fault proxy (deploy/faults in webmail-server).
