@@ -61,6 +61,7 @@ func (w *world) register(sc *godog.ScenarioContext) {
 	w.registerTrust(sc)
 	w.registerOutage(sc)
 	w.registerCatchUp(sc)
+	w.registerRateLimit(sc)
 
 	// Email checks look only at what was sent during this story.
 	sc.Before(func(ctx context.Context, _ *godog.Scenario) (context.Context, error) {
@@ -164,6 +165,7 @@ func (w *world) replyWith(ctx context.Context, who, owner, subject, body string,
 	w.lastSubject = subject
 	w.lastReply = body
 	w.replyBy[p.name] = body
+	w.replyBodies = append(w.replyBodies, body)
 	return nil
 }
 

@@ -54,7 +54,6 @@ Feature: Conversations survive Domains going down
     Then within 3 minutes everyone sees 4 messages on "Release planning"
     And Erin's reply appears after Bob's and Carol's for everyone
 
-  @wip
   Scenario: A peer that asks to slow down is respected
     Given example.com answers every delivery with "rate_limited" and a retry after 60 seconds
     When Alice replies to "Release planning": "Patience"

@@ -54,6 +54,11 @@ type world struct {
 	// replyBy each person's most recent one, "Erin's reply".
 	lastReply string
 	replyBy   map[string]string
+	// peerAnswers are what the test peer was told for each message it sent
+	// in a burst.
+	peerAnswers []answer
+	// replyBodies are the bodies of every reply in the story, in order.
+	replyBodies []string
 	// sends is how long each send since the last check took to be accepted.
 	sends []time.Duration
 	// lastAttempt is the answer to the last call the story expected might be

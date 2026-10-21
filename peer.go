@@ -161,6 +161,8 @@ type answer struct {
 	status int
 	code   string
 	detail string
+	// retryAfter is the Retry-After header, which a 429 carries.
+	retryAfter string
 }
 
 func (a answer) String() string {
@@ -205,7 +207,8 @@ func (p *sender) send(ctx context.Context, destination string, r *request) (answ
 		Detail string `json:"detail"`
 	}
 	_ = json.Unmarshal(raw, &a)
-	return answer{status: resp.StatusCode, code: a.Error, detail: a.Detail}, nil
+	return answer{status: resp.StatusCode, code: a.Error, detail: a.Detail,
+		retryAfter: resp.Header.Get("Retry-After")}, nil
 }
 
 // descriptor reads a Domain's published peer descriptor, as a peer would.

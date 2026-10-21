@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 	"time"
@@ -34,6 +35,107 @@ func (w *world) registerCatchUp(sc *godog.ScenarioContext) {
 		})
 	sc.Step(`^([\w ,]+?) still sees? (\d+) messages?$`, w.stillSee)
 	sc.Step(`^(\w+)'s reply appears after (\w+)'s and (\w+)'s for everyone$`, w.replyAfter)
+
+	// A peer that asks the others to slow down (RFC 6.4).
+	sc.Step(`^(\S+) answers every delivery with "([^"]*)" and a retry after (\d+) seconds$`,
+		func(ctx context.Context, domain, code string, seconds int) error {
+			return w.arm(ctx, fault{Domain: domain, Action: "answer", Status: http.StatusTooManyRequests,
+				Error: code, RetryAfter: seconds})
+		})
+	sc.Step(`^(\S+) stops rate limiting$`, func(ctx context.Context, domain string) error {
+		return w.stack.clearFaults(ctx, domain)
+	})
+	sc.Step(`^(.+) make no delivery attempt to (\S+) for (\d+) seconds$`, w.holdOff)
+	sc.Step(`^within (\d+) (seconds?|minutes?) (.+) sees? both replies$`,
+		func(ctx context.Context, n int, unit, list string) error {
+			if len(w.replyBodies) < 2 {
+				return fmt.Errorf("the story has %d replies, not two", len(w.replyBodies))
+			}
+			seconds := toSeconds(n, unit)
+			for _, body := range w.replyBodies[len(w.replyBodies)-2:] {
+				if err := w.eventuallySee(ctx, seconds, list, body); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
+}
+
+// holdOff checks that every listed Domain was turned away by the peer once
+// and then left it alone for the time it asked for. Time passes on the
+// stack's clock, which also runs on in real time while the step polls, so
+// both count; it stops ten seconds short, so the check is about the wait the
+// peer asked for and not the retry just after it.
+func (w *world) holdOff(ctx context.Context, origins, peer string, seconds int) error {
+	attempts := func(origin string) (map[int64]int, error) {
+		all, err := w.stack.envelopes(ctx, origin)
+		if err != nil {
+			return nil, err
+		}
+		out := map[int64]int{}
+		for _, e := range all {
+			if e.PeerDomain == peer && w.ours(e.Recipients...) {
+				out[e.ID] = e.Attempts
+			}
+		}
+		return out, nil
+	}
+	domains := names(origins)
+	before := map[string]map[int64]int{}
+	// The attempts happened no earlier than the replies just before this step.
+	start := time.Now()
+	var moved time.Duration
+	elapsed := func() time.Duration { return time.Since(start) + moved }
+	limit := time.Duration(seconds-10) * time.Second
+	// The first attempts happen at once. Waiting for them must not move the
+	// clock, or the wait the peer asked for would start before the check.
+	for _, origin := range domains {
+		err := pollReal(ctx, 30*time.Second, func() error {
+			got, err := attempts(origin)
+			if err != nil {
+				return err
+			}
+			if len(got) == 0 {
+				return fmt.Errorf("%s has sent nothing to %s", origin, peer)
+			}
+			for id, n := range got {
+				if n < 1 {
+					return fmt.Errorf("%s has not tried envelope %d to %s yet", origin, id, peer)
+				}
+			}
+			before[origin] = got
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+	}
+	for elapsed() < limit {
+		if passTime != nil && elapsed()+5*time.Second < limit {
+			if err := passTime(ctx, 5*time.Second); err != nil {
+				return err
+			}
+			moved += 5 * time.Second
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(300 * time.Millisecond):
+		}
+		for _, origin := range domains {
+			got, err := attempts(origin)
+			if err != nil {
+				return err
+			}
+			for id, n := range got {
+				if n != before[origin][id] {
+					return fmt.Errorf("%s tried envelope %d to %s again after %d of the %d seconds it was asked to wait",
+						origin, id, peer, int(elapsed().Seconds()), seconds)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func toSeconds(n int, unit string) int {

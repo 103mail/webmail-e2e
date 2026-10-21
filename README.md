@@ -125,11 +125,11 @@ The compose stack in `../webmail-server/deploy` grows to what the stories need:
   and start the containers labelled with the Domain, and recreate its worker
   with a shorter budget. Whatever a story changes is put back after it, even
   when it fails. The clock is built too, as one clock for the whole stack: see
-  "Time" below. The descriptor cache and the rate limit are not built yet.
+  "Time" below. The descriptor cache is not built yet.
   A story can also change a Domain's federation config for its duration,
   through `FEDERATION_CONFIG_<DOMAIN>`: an allowlist, a smaller attachment
-  limit, or a rotated key with the old one published as previous
-  (`reconfigure.go`). And every federation request passes through a fault
+  limit, a lower inbound rate limit (`ratelimit.go`), or a rotated key with
+  the old one published as previous (`reconfigure.go`). And every federation request passes through a fault
   proxy, `deploy/faults`, which a story can arm at `http://127.0.0.1:8026` (or
   `WEBMAIL_E2E_FAULTS`) to lose an answer or to refuse with a given status.
   Both are put back after the story.

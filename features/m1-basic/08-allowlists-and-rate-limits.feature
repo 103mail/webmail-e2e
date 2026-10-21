@@ -20,7 +20,6 @@ Feature: Operators decide who may send and how fast
     When Bob replies to "Partner call": "15:00 is fine"
     Then within 30 seconds Alice and Erin see "15:00 is fine"
 
-  @wip
   Scenario: A noisy peer is slowed down while the others are not
     Given example.com accepts at most 10 envelopes per minute from one peer
     And the test peer is known to example.com
