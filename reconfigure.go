@@ -170,7 +170,7 @@ func faultsURL() string {
 	if url := os.Getenv("WEBMAIL_E2E_FAULTS"); url != "" {
 		return url
 	}
-	return "http://127.0.0.1:8026"
+	return "http://faults:8026"
 }
 
 // arm adds a rule to the fault proxy.

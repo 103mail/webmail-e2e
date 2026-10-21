@@ -7,9 +7,10 @@ import (
 	"net/http"
 )
 
-// The read-only controls each Domain's API serves on port 8081 of its own
-// address (ADR 20 in webmail-server). They show what crossed a Domain
-// boundary, which the public API cannot.
+// The read-only controls each Domain's API serves on port 8081, reached at
+// control.webmail.{domain}, its alias on the federation network (ADR 20 in
+// webmail-server). They show what crossed a Domain boundary, which the public
+// API cannot.
 
 // envelope is one row of a Domain's federation outbox.
 type envelope struct {
@@ -27,7 +28,7 @@ type account struct {
 }
 
 func (s *Stack) control(ctx context.Context, domain, path string, out any) error {
-	url := "http://webmail." + domain + ":8081" + path
+	url := "http://control.webmail." + domain + ":8081" + path
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err

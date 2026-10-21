@@ -19,7 +19,8 @@ var (
 
 // TestFeatures runs every story under features/ against the compose stack in
 // ../webmail-server/deploy, or the one WEBMAIL_E2E_DEPLOY points at, with its
-// mail sink at WEBMAIL_E2E_MAILSINK.
+// mail sink at WEBMAIL_E2E_MAILSINK. It runs on the stack's federation network
+// (run.sh), so the default addresses are the names Docker gives the services.
 func TestFeatures(t *testing.T) {
 	deployDir := os.Getenv("WEBMAIL_E2E_DEPLOY")
 	if deployDir == "" {
@@ -27,7 +28,7 @@ func TestFeatures(t *testing.T) {
 	}
 	sinkURL := os.Getenv("WEBMAIL_E2E_MAILSINK")
 	if sinkURL == "" {
-		sinkURL = "http://127.0.0.1:8025"
+		sinkURL = "http://mailsink:4566"
 	}
 	stack, err := NewStack(deployDir, sinkURL)
 	if err != nil {

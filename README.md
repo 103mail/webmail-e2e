@@ -114,7 +114,7 @@ The compose stack in `../webmail-server/deploy` grows to what the stories need:
 - **The mail sink**: outbound email from every Domain is captured instead of
   sent, so stories can read invitations and prove that no content left. It
   stands in for SNS, so each server publishes through its production path,
-  and the steps read it at `http://127.0.0.1:8025/messages` (or
+  and the steps read it at `http://mailsink:4566/messages` (or
   `WEBMAIL_E2E_MAILSINK`). Email checks see only what was sent during the
   story.
 - **Controls**: steps can take a Domain down and bring it back, move a Domain's
@@ -130,7 +130,7 @@ The compose stack in `../webmail-server/deploy` grows to what the stories need:
   through `FEDERATION_CONFIG_<DOMAIN>`: an allowlist, a smaller attachment
   limit, a lower inbound rate limit (`ratelimit.go`), or a rotated key with
   the old one published as previous (`reconfigure.go`). And every federation request passes through a fault
-  proxy, `deploy/faults`, which a story can arm at `http://127.0.0.1:8026` (or
+  proxy, `deploy/faults`, which a story can arm at `http://faults:8026` (or
   `WEBMAIL_E2E_FAULTS`) to lose an answer or to refuse with a given status.
   Both are put back after the story.
 
@@ -154,14 +154,23 @@ The suite drives HTTP only, so there is no browser to install, and Go matches
 the backend: signing a federation request in a step uses the same
 `crypto/ed25519` the server does.
 
-    go test ./...                                   # every story not tagged @wip
-    go test ./... -godog.tags='@M1 && ~@wip'        # one milestone
-    go test ./... -godog.tags='@wip'                # what is still to build
-    go test ./... -godog.tags= -godog.paths=features/m1-basic/01-project-thread.feature
+    ./run.sh                                   # every story not tagged @wip
+    ./run.sh -godog.tags='@M1 && ~@wip'        # one milestone
+    ./run.sh -godog.tags='@wip'                # what is still to build
+    ./run.sh -godog.tags= -godog.paths=features/m1-basic/01-project-thread.feature
 
 The suite runs against the compose stack in `../webmail-server/deploy`, which
-must be up (see its `TESTING.md`); set `WEBMAIL_E2E_DEPLOY` to use another
-checkout. A Domain a story needs but the stack lacks fails at the `Given` that
+must be up (see its `TESTING.md`). `run.sh` passes its arguments to
+`go test ./...` in a container on the stack's `webmail_federation` network, so
+every address is a Docker one: `webmail.{domain}` resolves to that Domain's
+nginx through the same network aliases the Domains use to reach each other,
+and the mail sink, the fault proxy and the controls are reached by their names
+on that network. No `/etc/hosts` entries are needed, and the host ports are not
+used. The container gets the Docker socket, because the steps stop, start and
+recreate containers, and the parent directory of this repo at the same path as
+on the host, because `docker compose` resolves the stack's bind mounts there.
+It runs as you, so what it writes into the deploy directory stays yours. Set
+`WEBMAIL_E2E_DEPLOY` to use another checkout under that same parent directory. A Domain a story needs but the stack lacks fails at the `Given` that
 creates its people, with a message naming the Domain.
 
 The step definitions live in `steps.go`, with the per-story state in
@@ -170,7 +179,8 @@ whose stack control does not exist yet answer pending with the reason.
 
 What a Domain sent to its peers, and which accounts it holds, cannot be seen
 through the public API. Those steps read the read-only controls each Domain's
-API serves at `http://webmail.{domain}:8081/control/` (ADR 20 in
+API serves at `http://control.webmail.{domain}:8081/control/`, its alias on
+the federation network (ADR 20 in
 `../webmail-server/docs/adr/`), and only look at envelopes and accounts that
 carry the story's own addresses.
 
