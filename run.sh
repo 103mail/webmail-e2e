@@ -1,9 +1,13 @@
 #!/bin/bash
 # Run the stories against the test stack in stack/ (./up.sh), from a container
-# on its federation network. Arguments go to `go test ./...`:
+# on its federation network. Arguments go to `go test`:
 #
 #   ./run.sh                                   # every story not tagged @wip
 #   ./run.sh -godog.tags='@M1 && ~@wip'        # one milestone
+#
+# Plain `go test`, not `go test ./...`: in this local directory mode the
+# stories' output streams as they run and is never cached, where a package
+# list shows only "ok" for a run that passes.
 #
 # This repo is mounted at the same path as on the host, because the steps run
 # `docker compose` against stack/ and the daemon resolves its bind mounts on
@@ -38,4 +42,4 @@ exec docker run --rm "${tty[@]}" \
     -e WEBMAIL_E2E_MAILSINK \
     -e WEBMAIL_E2E_FAULTS \
     webmail-e2e:local \
-    go test ./... "$@"
+    go test "$@"

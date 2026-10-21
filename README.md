@@ -179,7 +179,7 @@ Then:
 compose project `webmail-e2e`. Run it again after rebuilding an image. The
 stack publishes no host ports, so it runs next to a development stack.
 
-`run.sh` passes its arguments to `go test ./...` in a container on the
+`run.sh` passes its arguments to `go test` in a container on the
 stack's `webmail-e2e_federation` network, so every address is a Docker one:
 `webmail.{domain}` resolves to that Domain's nginx through the same network
 aliases the Domains use to reach each other, and the mail sink, the fault
