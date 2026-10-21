@@ -14,18 +14,22 @@ import (
 // works the way the README shows. Untagged runs skip what is still @wip.
 var (
 	tags   = flag.String("godog.tags", "~@wip", "tag expression selecting the stories to run")
-	format = flag.String("godog.format", "pretty", "godog output format")
+	format = flag.String("godog.format", "progress", "godog output format")
 	paths  = flag.String("godog.paths", "features", "comma-separated feature files or directories to run")
 )
 
 // TestFeatures runs every story under features/ against the compose stack in
-// stack/, with its mail sink at WEBMAIL_E2E_MAILSINK. It runs on the stack's
-// federation network (run.sh), so the default addresses are the names Docker
-// gives the services.
+// ../webmail-deploy, or the one WEBMAIL_E2E_DEPLOY points at, with its mail
+// sink at WEBMAIL_E2E_MAILSINK. It runs on the stack's federation network
+// (run.sh), so the default addresses are the names Docker gives the services.
 func TestFeatures(t *testing.T) {
+	deployDir := os.Getenv("WEBMAIL_E2E_DEPLOY")
+	if deployDir == "" {
+		deployDir = "../webmail-deploy"
+	}
 	// Absolute, because the steps hand it to `docker compose`, and the daemon
 	// resolves the stack's bind mounts on the host (run.sh).
-	deployDir, err := filepath.Abs("stack")
+	deployDir, err := filepath.Abs(deployDir)
 	if err != nil {
 		t.Fatal(err)
 	}

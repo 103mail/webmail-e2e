@@ -24,7 +24,7 @@ import (
 // act on the test stack and never on a server (ADR 20 in webmail-server).
 
 // configVariable is the compose variable that swaps a Domain's
-// federation.json (stack/docker-compose.yml).
+// federation.json (docker-compose.yml in webmail-deploy).
 func configVariable(domain string) string {
 	return "FEDERATION_CONFIG_" + regexp.MustCompile(`[^A-Z0-9]`).ReplaceAllString(strings.ToUpper(domain), "_")
 }
@@ -138,7 +138,7 @@ func (s *Stack) rotateKey(ctx context.Context, domain string, cfg map[string]any
 }
 
 // now is the time by the stack's clock: the real time plus the offset every
-// Domain adds (stack/clock/offset).
+// Domain adds (clock/offset in webmail-deploy).
 func (s *Stack) now() (time.Time, error) {
 	raw, err := os.ReadFile(filepath.Join(s.deployDir, "clock", "offset"))
 	if errors.Is(err, os.ErrNotExist) {
@@ -154,7 +154,7 @@ func (s *Stack) now() (time.Time, error) {
 	return time.Now().Add(offset), nil
 }
 
-// fault is one rule for the fault proxy (webmail-faults in stack/docker-compose.yml).
+// fault is one rule for the fault proxy (faults/ in webmail-deploy).
 type fault struct {
 	Domain     string `json:"domain"`
 	From       string `json:"from,omitempty"`

@@ -1,21 +1,19 @@
 #!/bin/bash
-# Bring up the test stack in stack/, from the images named in
-# stack/docker-compose.yml, and wait until every Domain answers. Run it again
-# after rebuilding an image to recreate what changed.
+# Bring up the compose stack in ../webmail-deploy (or WEBMAIL_E2E_DEPLOY) and
+# wait until every Domain answers. Its setup service makes the certificates,
+# keys, clock and databases first, and images that are missing are built from
+# the sibling checkouts. Arguments go to `docker compose up`, so
+# `./up.sh --build` rebuilds after a change to the server or the client.
 
 set -euo pipefail
 cd "$(dirname "$0")"
 
-missing=()
-for image in "${WEBMAIL_SERVER_IMAGE:-webmail-server:local}" "${WEBMAIL_CLIENT_IMAGE:-webmail-client:local}" \
-    "${WEBMAIL_FAULTS_IMAGE:-webmail-faults:local}" "${WEBMAIL_MAILSINK_IMAGE:-webmail-mailsink:local}"; do
-    [[ "$image" == *:local ]] && ! docker image inspect "$image" >/dev/null 2>&1 && missing+=("$image")
-done
-if (( ${#missing[@]} )); then
-    echo "these images are not built yet: ${missing[*]}" >&2
-    echo "build them from their repos, or point WEBMAIL_*_IMAGE at a registry (see README.md)" >&2
-    exit 1
-fi
+deploy=${WEBMAIL_E2E_DEPLOY:-../webmail-deploy}
 
-stack/setup.sh
-exec docker compose -f stack/docker-compose.yml up -d --wait --remove-orphans
+compose=(docker compose -f "$deploy/docker-compose.yml")
+
+"${compose[@]}" up -d --remove-orphans "$@"
+# The workers have their healthcheck disabled, which `up --wait` refuses, so
+# wait for everything else: the APIs and nginx are what answer.
+mapfile -t services < <("${compose[@]}" config --services | grep -v '^worker-')
+exec "${compose[@]}" up -d --wait --no-recreate "${services[@]}"

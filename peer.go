@@ -21,7 +21,7 @@ import (
 )
 
 // A sender speaks the federation protocol as one Domain, with that Domain's
-// own key from stack/keys. It is how a story acts as the test
+// own key from the keys/ of webmail-deploy. It is how a story acts as the test
 // peer, peer.test, or as a real Domain trying to speak for another. It signs
 // exactly the way webmail-server does (RFC 6.2), so whatever a Domain
 // refuses, it refuses for the reason the story names and not for a mistake

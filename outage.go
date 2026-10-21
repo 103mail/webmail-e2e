@@ -18,12 +18,12 @@ import (
 // The outage controls act on the test stack, not on any server: a Domain is
 // taken down by stopping its containers, and its retry budget is set by
 // recreating its worker. Containers carry a webmail.domain label, which is
-// how a Domain's are found (stack/docker-compose.yml).
+// how a Domain's are found (docker-compose.yml in webmail-deploy).
 
 // containers lists the ids of a Domain's containers, running or not.
 func (s *Stack) containers(ctx context.Context, domain string) ([]string, error) {
 	out, err := exec.CommandContext(ctx, "docker", "ps", "-aq",
-		"--filter", "label=com.docker.compose.project=webmail-e2e",
+		"--filter", "label=com.docker.compose.project=webmail",
 		"--filter", "label=webmail.domain="+domain).Output()
 	if err != nil {
 		return nil, fmt.Errorf("list the containers of %s: %w", domain, err)
@@ -60,7 +60,7 @@ func (s *Stack) up(ctx context.Context, domain string) error {
 }
 
 // passTime moves the clock every Domain shares forward by d: the offset in
-// stack/clock/offset, which each API and worker adds to the real time
+// clock/offset in webmail-deploy, which each API and worker adds to the real time
 // (WEBMAIL_CLOCK_FILE). It is replaced whole, so a server never reads half a
 // file, and it only ever moves forward.
 func (s *Stack) passTime(ctx context.Context, d time.Duration) error {
