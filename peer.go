@@ -21,7 +21,7 @@ import (
 )
 
 // A sender speaks the federation protocol as one Domain, with that Domain's
-// own key from the stack's deploy/keys. It is how a story acts as the test
+// own key from stack/keys. It is how a story acts as the test
 // peer, peer.test, or as a real Domain trying to speak for another. It signs
 // exactly the way webmail-server does (RFC 6.2), so whatever a Domain
 // refuses, it refuses for the reason the story names and not for a mistake
@@ -41,7 +41,7 @@ func (s *Stack) sender(domain string) (*sender, error) {
 	path := filepath.Join(s.deployDir, "keys", domain+".ed25519.pem")
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read the key of %s (run deploy/setup.sh): %w", domain, err)
+		return nil, fmt.Errorf("read the key of %s (run ./up.sh): %w", domain, err)
 	}
 	key, err := parseKey(raw)
 	if err != nil {

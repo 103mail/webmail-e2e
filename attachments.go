@@ -276,24 +276,29 @@ func (w *world) eachSeeFiles(ctx context.Context, seconds int, list, names strin
 	})
 }
 
+// twoSeeFiles follows a "within N seconds" step and shares its deadline:
+// each reply travels to every Domain in an envelope of its own, so the
+// senders' copies can arrive a worker tick after the ones that step saw.
 func (w *world) twoSeeFiles(ctx context.Context, first, firstFile, second, secondFile string) error {
 	c, err := w.conversation("", w.lastSubject)
 	if err != nil {
 		return err
 	}
-	var errs []error
-	for _, pair := range [][2]string{{first, firstFile}, {second, secondFile}} {
-		p, err := w.person(pair[0])
-		if err != nil {
-			return err
+	return eventually(ctx, 60, func() error {
+		var errs []error
+		for _, pair := range [][2]string{{first, firstFile}, {second, secondFile}} {
+			p, err := w.person(pair[0])
+			if err != nil {
+				return err
+			}
+			files, err := w.filesOn(ctx, p, c)
+			if err == nil {
+				err = w.identical(ctx, p, pair[1], files[pair[1]])
+			}
+			errs = append(errs, err)
 		}
-		files, err := w.filesOn(ctx, p, c)
-		if err == nil {
-			err = w.identical(ctx, p, pair[1], files[pair[1]])
-		}
-		errs = append(errs, err)
-	}
-	return errors.Join(errs...)
+		return errors.Join(errs...)
+	})
 }
 
 // downloadAll checks that a person has every file attached to the thread,

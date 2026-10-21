@@ -3,6 +3,7 @@ package e2e
 import (
 	"flag"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -18,13 +19,15 @@ var (
 )
 
 // TestFeatures runs every story under features/ against the compose stack in
-// ../webmail-server/deploy, or the one WEBMAIL_E2E_DEPLOY points at, with its
-// mail sink at WEBMAIL_E2E_MAILSINK. It runs on the stack's federation network
-// (run.sh), so the default addresses are the names Docker gives the services.
+// stack/, with its mail sink at WEBMAIL_E2E_MAILSINK. It runs on the stack's
+// federation network (run.sh), so the default addresses are the names Docker
+// gives the services.
 func TestFeatures(t *testing.T) {
-	deployDir := os.Getenv("WEBMAIL_E2E_DEPLOY")
-	if deployDir == "" {
-		deployDir = "../webmail-server/deploy"
+	// Absolute, because the steps hand it to `docker compose`, and the daemon
+	// resolves the stack's bind mounts on the host (run.sh).
+	deployDir, err := filepath.Abs("stack")
+	if err != nil {
+		t.Fatal(err)
 	}
 	sinkURL := os.Getenv("WEBMAIL_E2E_MAILSINK")
 	if sinkURL == "" {

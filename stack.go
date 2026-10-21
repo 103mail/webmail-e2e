@@ -21,8 +21,7 @@ import (
 // password is what every account the suite creates signs in with.
 const password = "password"
 
-// passwordHash is bcrypt of password, the same hash deploy/seed.sh writes, so
-// the suite needs no bcrypt of its own.
+// passwordHash is bcrypt of password, so the suite needs no bcrypt of its own.
 const passwordHash = "$2y$10$jO3R170QUVr5pj.eMO1bZuduB8SoSAuIpC1jrmtzwnh6vEWr.bqpW"
 
 // Stack is the running compose stack: one Server per Domain, each reached at
@@ -42,7 +41,7 @@ func NewStack(deployDir, sinkURL string) (*Stack, error) {
 	caFile := filepath.Join(deployDir, "certs", "webmail-local-ca.crt")
 	pem, err := os.ReadFile(caFile)
 	if err != nil {
-		return nil, fmt.Errorf("read the stack's CA (run deploy/setup.sh first): %w", err)
+		return nil, fmt.Errorf("read the stack's CA (run ./up.sh first): %w", err)
 	}
 	pool := x509.NewCertPool()
 	if !pool.AppendCertsFromPEM(pem) {
@@ -103,9 +102,13 @@ func (s *Stack) health(ctx context.Context, domain string) error {
 // alias for address, which is also the login.
 //
 // There is no signup endpoint yet, so this writes the rows into the Domain's
-// SQLite file directly, the same rows deploy/seed.sh writes. It is a stack
-// control like taking a Domain down, not an observation: no step reads the
-// database to decide an outcome. Replace it with the signup API when M4 lands.
+// SQLite file directly. It is a stack control like taking a Domain down, not
+// an observation: no step reads the database to decide an outcome. Replace it
+// with the signup API when M4 lands.
+//
+// The Domain's database starts empty, with only the schema its API created,
+// so the first account also gives it the invitation template its email to
+// people without federation is built from.
 func (s *Stack) Provision(ctx context.Context, domain, address, name string) error {
 	path := filepath.Join(s.deployDir, "data", domain, "webmail.db")
 	if _, err := os.Stat(path); err != nil {
@@ -123,6 +126,11 @@ func (s *Stack) Provision(ctx context.Context, domain, address, name string) err
 		return fmt.Errorf("provision %s: %w", address, err)
 	}
 	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, inviteTemplate, "invite", "en", domain, "no-reply@"+domain,
+		"You have a message waiting", fmt.Sprintf(inviteBody, domain), "link"); err != nil {
+		return fmt.Errorf("provision the invitation template of %s: %w", domain, err)
+	}
 
 	insert := func(query string, args ...any) (int64, error) {
 		var id int64
@@ -165,3 +173,20 @@ func (s *Stack) Provision(ctx context.Context, domain, address, name string) err
 	}
 	return tx.Commit()
 }
+
+// inviteTemplate adds the email_template row a Domain invites someone without
+// federation with, unless it has one (email.InviteTemplate in webmail-server).
+const inviteTemplate = `INSERT INTO "email_template" ` +
+	`("name", "language", "sender_name", "sender_email", "subject", "body", "parameters") ` +
+	`VALUES (?,?,?,?,?,?,?) ON CONFLICT ("language", "name") DO NOTHING`
+
+// inviteBody takes the Domain. It carries only the link, never the message,
+// which is what keeps message content off email (ADR 4).
+const inviteBody = `Hello,
+
+Someone sent you a message on %s. Open it here:
+
+{{link}}
+
+This link is personal and expires.
+`

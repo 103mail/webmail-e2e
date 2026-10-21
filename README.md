@@ -98,16 +98,18 @@ features/
 
 ## The test stack
 
-The compose stack in `../webmail-server/deploy` grows to what the stories need:
+The compose stack in `stack/` grows to what the stories need. It is built from
+images only (see "Runner"), so the suite reads nothing outside this repo:
 
 - **Domains**: 103mail.com, example.com, mail.acme.test and acme.test, each an
-  API, a worker and an SQLite file in a volume. registrar.test joins for M6.
+  API, a worker and an SQLite file in `stack/data`, which the API creates
+  empty with its schema. registrar.test joins for M6.
   There are no database containers: the whole suite runs on SQLite, while
   production runs PostgreSQL on the same portable SQL (ADR 19 in
   `../webmail-server/docs/adr/`).
 - **The test peer** (`peer.test`): a Domain like the others in the stack,
   publishing a real descriptor from its own key, that nobody uses. The steps
-  sign envelopes with its key (`deploy/keys/peer.test.ed25519.pem`) and send
+  sign envelopes with its key (`stack/keys/peer.test.ed25519.pem`) and send
   them as it: stale, replayed, mis-signed, oversized, forged, or from someone
   who is not on the thread (`peer.go`). A step can speak as any Domain of the
   stack the same way, with that Domain's key, to try to speak for another.
@@ -130,14 +132,14 @@ The compose stack in `../webmail-server/deploy` grows to what the stories need:
   through `FEDERATION_CONFIG_<DOMAIN>`: an allowlist, a smaller attachment
   limit, a lower inbound rate limit (`ratelimit.go`), or a rotated key with
   the old one published as previous (`reconfigure.go`). And every federation request passes through a fault
-  proxy, `deploy/faults`, which a story can arm at `http://faults:8026` (or
+  proxy, `webmail-faults`, which a story can arm at `http://faults:8026` (or
   `WEBMAIL_E2E_FAULTS`) to lose an answer or to refuse with a given status.
   Both are put back after the story.
 
 ## Time
 
 A deadline such as "within 3 minutes" is not waited out. The stack's clock is
-the real one plus an offset every Domain reads (`deploy/clock/offset`), and
+the real one plus an offset every Domain reads (`stack/clock/offset`), and
 while a step's check fails, the step moves that offset forward a few seconds
 at a time and checks again a quarter of a second later. Retries, backoffs, the
 retry budget and the backfill probe all run on that clock, so minutes of them
@@ -154,24 +156,40 @@ The suite drives HTTP only, so there is no browser to install, and Go matches
 the backend: signing a federation request in a step uses the same
 `crypto/ed25519` the server does.
 
+The stack needs four images, which their own repos build. Nothing else is
+read from them:
+
+| Image | Built in | Override |
+| --- | --- | --- |
+| `webmail-server:local` | `webmail-server` (`docker build -t webmail-server:local .`) | `WEBMAIL_SERVER_IMAGE` |
+| `webmail-client:local` | `webmail-client` (`docker build -t webmail-client:local .`) | `WEBMAIL_CLIENT_IMAGE` |
+| `webmail-faults:local` | the fault proxy of the deploy repo | `WEBMAIL_FAULTS_IMAGE` |
+| `webmail-mailsink:local` | the mail sink of the deploy repo | `WEBMAIL_MAILSINK_IMAGE` |
+
+Then:
+
+    ./up.sh                                    # make certs and keys, start the stack, wait
     ./run.sh                                   # every story not tagged @wip
     ./run.sh -godog.tags='@M1 && ~@wip'        # one milestone
     ./run.sh -godog.tags='@wip'                # what is still to build
     ./run.sh -godog.tags= -godog.paths=features/m1-basic/01-project-thread.feature
+    ./down.sh                                  # stop it; --reset also empties every Domain
 
-The suite runs against the compose stack in `../webmail-server/deploy`, which
-must be up (see its `TESTING.md`). `run.sh` passes its arguments to
-`go test ./...` in a container on the stack's `webmail_federation` network, so
-every address is a Docker one: `webmail.{domain}` resolves to that Domain's
-nginx through the same network aliases the Domains use to reach each other,
-and the mail sink, the fault proxy and the controls are reached by their names
-on that network. No `/etc/hosts` entries are needed, and the host ports are not
-used. The container gets the Docker socket, because the steps stop, start and
-recreate containers, and the parent directory of this repo at the same path as
-on the host, because `docker compose` resolves the stack's bind mounts there.
-It runs as you, so what it writes into the deploy directory stays yours. Set
-`WEBMAIL_E2E_DEPLOY` to use another checkout under that same parent directory. A Domain a story needs but the stack lacks fails at the `Given` that
-creates its people, with a message naming the Domain.
+`up.sh` runs `stack/setup.sh`, which needs only openssl, and starts the
+compose project `webmail-e2e`. Run it again after rebuilding an image. The
+stack publishes no host ports, so it runs next to a development stack.
+
+`run.sh` passes its arguments to `go test ./...` in a container on the
+stack's `webmail-e2e_federation` network, so every address is a Docker one:
+`webmail.{domain}` resolves to that Domain's nginx through the same network
+aliases the Domains use to reach each other, and the mail sink, the fault
+proxy and the controls are reached by their names on that network. No
+`/etc/hosts` entries are needed. The container gets the Docker socket,
+because the steps stop, start and recreate containers, and this repo at the
+same path as on the host, because `docker compose` resolves the stack's bind
+mounts there. It runs as you, so what it writes into `stack/` stays yours. A
+Domain a story needs but the stack lacks fails at the `Given` that creates
+its people, with a message naming the Domain.
 
 The step definitions live in `steps.go`, with the per-story state in
 `world.go` and the API client in `client.go`. Steps whose phrase is agreed but
@@ -185,8 +203,8 @@ the federation network (ADR 20 in
 carry the story's own addresses.
 
 Until there is a signup API (M4), `Stack.Provision` creates each person's
-account by writing the same rows `deploy/seed.sh` writes into the Domain's
-SQLite file. That is a stack control, like taking a Domain down; no step reads
+account by writing its rows into the Domain's SQLite file, and gives a
+Domain its invitation template with the first account. That is a stack control, like taking a Domain down; no step reads
 a database to decide an outcome.
 
 ## RFC coverage
