@@ -1,4 +1,4 @@
-module github.com/mevdschee/webmail-e2e
+module github.com/103mail/webmail-e2e
 
 go 1.26.0
 
