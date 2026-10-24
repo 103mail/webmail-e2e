@@ -62,6 +62,7 @@ func (w *world) register(sc *godog.ScenarioContext) {
 	w.registerOutage(sc)
 	w.registerCatchUp(sc)
 	w.registerRateLimit(sc)
+	w.registerChat(sc)
 
 	// Email checks look only at what was sent during this story.
 	sc.Before(func(ctx context.Context, _ *godog.Scenario) (context.Context, error) {

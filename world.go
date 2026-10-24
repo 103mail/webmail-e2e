@@ -42,6 +42,8 @@ type world struct {
 	run           string
 	people        map[string]*person
 	conversations []*conversation
+	// chats are the chats started in the story (chat.go).
+	chats []*chatRoom
 
 	// lastSend is how long the most recent "writes to" took to be accepted.
 	lastSend struct {

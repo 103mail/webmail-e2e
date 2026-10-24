@@ -86,11 +86,12 @@ features/
   m4-real-email/       verified real email addresses on every Domain
   m5-registrar/        reaching people with no federated home
   m6-multi-registrar/  several Registrars agreeing on one mailbox per person
+  m7-beyond-mail/      chat between Domains, the specification for M7
 ```
 
 | Tag | Meaning |
 | --- | --- |
-| `@M1` ... `@M6` | Milestone whose exit criterion includes this story |
+| `@M1` ... `@M7` | Milestone whose exit criterion includes this story |
 | `@protocol` | Part of the story acts as a raw federation peer |
 | `@outage` | Stops or restarts a Domain, or shortens the retry budget |
 | `@wip` | Agreed but not built yet; allowed to fail |
