@@ -86,7 +86,7 @@ features/
   m4-real-email/       verified real email addresses on every Domain
   m5-registrar/        reaching people with no federated home
   m6-multi-registrar/  several Registrars agreeing on one mailbox per person
-  m7-beyond-mail/      chat between Domains, the specification for M7
+  m7-beyond-mail/      chat and meetings between Domains, the specification for M7
 ```
 
 | Tag | Meaning |
