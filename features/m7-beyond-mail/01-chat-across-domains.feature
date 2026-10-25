@@ -1,13 +1,11 @@
-@M7 @wip @rfc-14
+@M7 @rfc-14
 Feature: People chat with each other across Domains
   As people with accounts on different Domains
   We want a chat to reach everyone in it, wherever their account is
   So that chat works between Domains the way mail does, and never leaves the system
 
-  # Chat is not federated yet: a chat with someone on another Domain gives
-  # them no chat at all. These stories prove the chat extension, §14 of the
-  # RFC, and stay @wip until it is built. Within a Domain, the rules are those
-  # of ADR 9 in ../webmail-server/docs/adr/.
+  # These stories prove the chat extension, §14 of the RFC. Within a Domain,
+  # the rules are those of ADR 9 in ../webmail-server/docs/adr/.
 
   Background:
     Given Alice and Ann have accounts on 103mail.com
